@@ -1,0 +1,567 @@
+:root {
+    --npc-theater-ink: var(--SmartThemeBodyColor, #f4f0ff);
+    --npc-theater-muted: color-mix(in srgb, var(--npc-theater-ink) 62%, transparent);
+    --npc-theater-border: color-mix(in srgb, var(--SmartThemeBorderColor, #b9a9d9) 62%, transparent);
+    --npc-theater-panel: color-mix(in srgb, var(--SmartThemeBlurTintColor, #16121f) 88%, transparent);
+    --npc-theater-deep: color-mix(in srgb, var(--SmartThemeBlurTintColor, #16121f) 97%, #09070d);
+}
+
+.npc-theater-toggle {
+    position: fixed;
+    right: max(18px, env(safe-area-inset-right));
+    bottom: max(96px, calc(env(safe-area-inset-bottom) + 76px));
+    width: 50px;
+    height: 50px;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, #cba8ff 52%, var(--npc-theater-border));
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 32% 22%, rgba(255, 255, 255, .24), transparent 34%),
+        linear-gradient(145deg, rgba(127, 82, 190, .92), rgba(49, 31, 76, .96));
+    color: #fff;
+    box-shadow: 0 12px 36px rgba(16, 7, 27, .46), inset 0 1px rgba(255, 255, 255, .22);
+    font-size: 23px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 40002;
+    transition: transform .22s ease, box-shadow .22s ease;
+}
+
+.npc-theater-toggle:hover {
+    transform: translateY(-3px) rotate(-5deg);
+    box-shadow: 0 16px 44px rgba(27, 10, 48, .58), 0 0 0 4px rgba(185, 139, 255, .12);
+}
+
+.npc-theater-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 5, 10, .48);
+    backdrop-filter: blur(2px);
+    z-index: 40000;
+}
+
+.npc-theater-panel {
+    position: fixed;
+    right: 22px;
+    bottom: 158px;
+    display: flex;
+    flex-direction: column;
+    width: min(440px, calc(100vw - 28px));
+    max-height: min(760px, calc(100vh - 90px));
+    overflow: hidden;
+    border: 1px solid var(--npc-theater-border);
+    border-radius: 20px;
+    background:
+        linear-gradient(150deg, rgba(255, 255, 255, .055), transparent 38%),
+        var(--npc-theater-panel);
+    color: var(--npc-theater-ink);
+    box-shadow: 0 30px 90px rgba(0, 0, 0, .5), inset 0 1px rgba(255, 255, 255, .08);
+    backdrop-filter: blur(22px) saturate(130%);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px) scale(.98);
+    transform-origin: bottom right;
+    transition: opacity .2s ease, transform .24s cubic-bezier(.2, .8, .2, 1), visibility .2s;
+    z-index: 40001;
+    isolation: isolate;
+}
+
+.npc-theater-panel::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    opacity: .5;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 100% 0, rgba(124, 70, 178, .24), transparent 33%),
+        radial-gradient(circle at 0 100%, rgba(40, 133, 150, .14), transparent 28%);
+}
+
+.npc-theater-panel.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.npc-theater-panel.no-glass {
+    background: var(--npc-theater-deep);
+    backdrop-filter: none;
+}
+
+.npc-theater-panel.no-animation,
+.npc-theater-panel.no-animation * {
+    transition: none !important;
+    animation: none !important;
+}
+
+.npc-theater-panel.is-dragging {
+    user-select: none;
+    transition: none;
+}
+
+.npc-theater-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 62px;
+    padding: 10px 12px 10px 16px;
+    border-bottom: 1px solid var(--npc-theater-border);
+    background: linear-gradient(90deg, rgba(255, 255, 255, .045), transparent);
+    cursor: grab;
+    touch-action: none;
+}
+
+.npc-theater-header:active { cursor: grabbing; }
+
+.npc-theater-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.npc-theater-brand-mark {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(205, 177, 245, .3);
+    border-radius: 11px;
+    background: rgba(151, 101, 213, .14);
+    color: #d8b9ff;
+    box-shadow: inset 0 0 18px rgba(201, 163, 255, .1);
+}
+
+.npc-theater-brand strong,
+.npc-theater-brand small {
+    display: block;
+}
+
+.npc-theater-brand strong {
+    font-size: 14px;
+    letter-spacing: .14em;
+}
+
+.npc-theater-brand small {
+    margin-top: 2px;
+    color: var(--npc-theater-muted);
+    font-size: 8px;
+    letter-spacing: .27em;
+}
+
+.npc-theater-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.npc-theater-header-actions button,
+.npc-theater-icon-button {
+    border: 0;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+}
+
+.npc-theater-header-actions button {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    color: var(--npc-theater-muted);
+    font-size: 16px;
+}
+
+.npc-theater-header-actions button:hover {
+    background: rgba(255, 255, 255, .08);
+    color: var(--npc-theater-ink);
+}
+
+.npc-theater-scene {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--npc-theater-border);
+}
+
+.npc-theater-scene-copy { min-width: 0; }
+
+.npc-theater-eyebrow,
+.npc-theater-index {
+    display: block;
+    margin-bottom: 5px;
+    color: #b99ae2;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .22em;
+}
+
+.npc-theater-scene-copy strong {
+    display: block;
+    overflow: hidden;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 17px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.npc-theater-scene-copy p {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 5px 0 0;
+    color: var(--npc-theater-muted);
+    font-size: 11px;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.npc-theater-count {
+    min-width: 58px;
+    padding: 9px 8px;
+    border: 1px solid var(--npc-theater-border);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, .035);
+    text-align: center;
+}
+
+.npc-theater-count strong,
+.npc-theater-count span { display: block; }
+.npc-theater-count strong { font: 600 20px/1 Georgia, serif; }
+.npc-theater-count span { margin-top: 4px; color: var(--npc-theater-muted); font-size: 9px; }
+
+.npc-theater-progress {
+    height: 2px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .025);
+}
+
+.npc-theater-progress span {
+    display: block;
+    width: 35%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, #c5a1f7, #7fd4da, transparent);
+    opacity: 0;
+}
+
+.npc-theater-panel.is-loading .npc-theater-progress span {
+    opacity: 1;
+    animation: npc-theater-loading 1.25s linear infinite;
+}
+
+@keyframes npc-theater-loading {
+    from { transform: translateX(-120%); }
+    to { transform: translateX(310%); }
+}
+
+.npc-theater-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 160px;
+    padding: 14px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+.npc-theater-card {
+    --npc-accent: hsl(var(--npc-hue) 72% 72%);
+    overflow: hidden;
+    flex: 0 0 auto;
+    border: 1px solid color-mix(in srgb, var(--npc-accent) 28%, var(--npc-theater-border));
+    border-radius: 16px;
+    background:
+        linear-gradient(145deg, color-mix(in srgb, var(--npc-accent) 6%, transparent), transparent 38%),
+        rgba(2, 2, 4, .14);
+    box-shadow: inset 3px 0 color-mix(in srgb, var(--npc-accent) 58%, transparent), 0 8px 24px rgba(0, 0, 0, .13);
+    animation: npc-theater-card-in .32s both;
+}
+
+@keyframes npc-theater-card-in {
+    from { opacity: 0; transform: translateY(8px); }
+}
+
+.npc-theater-card-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 11px;
+    min-height: 72px;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.npc-theater-avatar {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border: 1px solid color-mix(in srgb, var(--npc-accent) 48%, transparent);
+    border-radius: 14px 14px 14px 5px;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--npc-accent) 27%, transparent), rgba(255, 255, 255, .025));
+    color: var(--npc-accent);
+    font: 500 21px/1 Georgia, serif;
+    text-shadow: 0 0 18px color-mix(in srgb, var(--npc-accent) 55%, transparent);
+}
+
+.npc-theater-identity { min-width: 0; }
+.npc-theater-identity h3 { overflow: hidden; margin: 0; font: 500 17px/1.2 Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
+.npc-theater-identity p { margin: 5px 0 0; color: var(--npc-theater-muted); font-size: 10px; }
+.npc-theater-index { color: var(--npc-accent); }
+
+.npc-theater-presence {
+    padding: 4px 7px;
+    border: 1px solid rgba(102, 215, 165, .22);
+    border-radius: 999px;
+    background: rgba(66, 178, 126, .08);
+    color: #89dfb8;
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.npc-theater-card-header > button {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    color: var(--npc-theater-muted);
+    font-size: 17px;
+}
+
+.npc-theater-card-body {
+    padding: 0 12px 13px;
+    border-top: 1px solid color-mix(in srgb, var(--npc-accent) 14%, var(--npc-theater-border));
+}
+
+.npc-theater-card.is-collapsed .npc-theater-card-body { display: none; }
+
+.npc-theater-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 10px 0;
+}
+
+.npc-theater-tags span {
+    padding: 4px 8px;
+    border: 1px solid color-mix(in srgb, var(--npc-accent) 22%, var(--npc-theater-border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--npc-accent) 7%, transparent);
+    color: color-mix(in srgb, var(--npc-accent) 76%, var(--npc-theater-ink));
+    font-size: 9px;
+}
+
+.npc-theater-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--npc-theater-border);
+    border-radius: 11px;
+    background: rgba(0, 0, 0, .12);
+}
+
+.npc-theater-tabs button {
+    min-height: 30px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--npc-theater-muted);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.npc-theater-tabs button.is-active {
+    background: color-mix(in srgb, var(--npc-accent) 13%, rgba(255, 255, 255, .05));
+    color: var(--npc-theater-ink);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--npc-accent) 23%, transparent);
+}
+
+.npc-theater-tab-content { padding-top: 12px; }
+
+.npc-theater-status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+}
+
+.npc-theater-status-row {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 7px;
+    min-width: 0;
+    padding: 9px;
+    border: 1px solid rgba(255, 255, 255, .055);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .025);
+}
+
+.npc-theater-row-icon { color: var(--npc-accent); font-size: 13px; }
+.npc-theater-status-row small { display: block; color: var(--npc-theater-muted); font-size: 8px; letter-spacing: .08em; }
+.npc-theater-status-row p { margin: 4px 0 0; font-size: 10px; line-height: 1.45; }
+
+.npc-theater-relationships {
+    margin-top: 10px;
+    padding: 11px;
+    border: 1px solid rgba(255, 255, 255, .055);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, .1);
+}
+
+.npc-theater-relationships h4,
+.npc-theater-mind-block h4,
+.npc-theater-diary-page h4 { margin: 0; }
+.npc-theater-relationships h4 { margin-bottom: 9px; font-size: 10px; letter-spacing: .11em; }
+
+.npc-theater-meter { margin-top: 7px; }
+.npc-theater-meter > div:first-child { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 9px; }
+.npc-theater-meter strong { font-variant-numeric: tabular-nums; }
+.npc-theater-meter-track { height: 4px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, .08); }
+.npc-theater-meter-track span { display: block; height: 100%; border-radius: inherit; background: var(--meter-color, var(--npc-accent)); box-shadow: 0 0 8px var(--meter-color, var(--npc-accent)); transition: width .5s ease; }
+.meter-rose { --meter-color: #dd84ad; }
+.meter-cyan { --meter-color: #65cbd1; }
+.meter-amber { --meter-color: #d5ae5c; }
+.meter-violet { --meter-color: #a58ae3; }
+.meter-red { --meter-color: #d37272; }
+.npc-theater-relation-reason { margin: 10px 0 0; color: var(--npc-theater-muted); font-size: 9px; line-height: 1.45; }
+
+.npc-theater-mind-block {
+    position: relative;
+    margin-bottom: 8px;
+    padding: 12px 12px 12px 15px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .06);
+    border-radius: 11px;
+    background: linear-gradient(100deg, color-mix(in srgb, var(--npc-accent) 7%, transparent), rgba(255, 255, 255, .018));
+}
+
+.npc-theater-mind-block::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--npc-accent); opacity: .7; }
+.npc-theater-mind-block small { color: var(--npc-accent); font-size: 7px; letter-spacing: .2em; }
+.npc-theater-mind-block h4 { margin-top: 3px; font-size: 10px; }
+.npc-theater-mind-block p { margin: 7px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 12px; line-height: 1.65; }
+
+.npc-theater-mind-history { margin-top: 10px; color: var(--npc-theater-muted); font-size: 9px; }
+.npc-theater-mind-history summary { cursor: pointer; }
+.npc-theater-mind-history > div { margin-top: 7px; padding: 7px 9px; border-left: 1px solid var(--npc-theater-border); }
+.npc-theater-mind-history time { font-size: 8px; }
+.npc-theater-mind-history p { margin: 3px 0 0; color: var(--npc-theater-ink); line-height: 1.45; }
+
+.npc-theater-diary-page {
+    position: relative;
+    margin-bottom: 10px;
+    padding: 15px 14px 14px 20px;
+    border: 1px solid rgba(193, 172, 130, .19);
+    border-radius: 5px 12px 12px 5px;
+    background:
+        linear-gradient(90deg, rgba(176, 137, 82, .09) 1px, transparent 1px) 13px 0 / 18px 100%,
+        repeating-linear-gradient(0deg, transparent, transparent 23px, rgba(255, 255, 255, .035) 24px),
+        rgba(117, 92, 56, .07);
+    box-shadow: 0 7px 16px rgba(0, 0, 0, .1);
+}
+
+.npc-theater-diary-page time { color: #b69a70; font-size: 8px; letter-spacing: .1em; }
+.npc-theater-diary-page h4 { margin-top: 5px; font: 500 14px/1.3 Georgia, serif; }
+.npc-theater-diary-page p { margin: 9px 0 0; font: 11px/1.8 Georgia, 'Times New Roman', serif; white-space: pre-wrap; }
+.npc-theater-no-entry { color: var(--npc-theater-muted); font-size: 11px; text-align: center; }
+
+.npc-theater-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    padding: 24px;
+    text-align: center;
+}
+.npc-theater-empty > span { color: #b893e5; font-size: 34px; }
+.npc-theater-empty strong { margin-top: 9px; font: 500 18px Georgia, serif; }
+.npc-theater-empty p { margin: 7px 0 14px; color: var(--npc-theater-muted); font-size: 11px; }
+.npc-theater-error { max-width: 100%; margin-top: 12px; color: #e88f8f; overflow-wrap: anywhere; }
+
+.npc-theater-panel.is-minimized .npc-theater-scene,
+.npc-theater-panel.is-minimized .npc-theater-progress,
+.npc-theater-panel.is-minimized .npc-theater-list { display: none; }
+
+.npc-theater-settings .inline-drawer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.npc-theater-settings h4 { margin: 13px 0 0; padding-bottom: 4px; border-bottom: 1px solid var(--SmartThemeBorderColor); }
+.npc-theater-settings label:not(.checkbox_label) { display: flex; flex-direction: column; gap: 4px; font-size: .9em; }
+.npc-theater-settings-lead { margin: 0; color: var(--SmartThemeEmColor, inherit); font-size: .9em; line-height: 1.45; }
+.npc-theater-setting-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.npc-theater-settings small { opacity: .72; line-height: 1.35; }
+.npc-theater-settings .npc-theater-warning { display: block; padding: 7px 9px; border: 1px solid rgba(230, 176, 88, .25); border-radius: 8px; background: rgba(189, 125, 36, .08); color: #e7bd7d; opacity: 1; }
+.npc-theater-settings textarea { resize: vertical; min-height: 190px; }
+.npc-theater-settings .hidden { display: none !important; }
+.npc-theater-settings #npc-theater-profile-fields,
+.npc-theater-settings #npc-theater-direct-fields { display: flex; flex-direction: column; gap: 7px; }
+
+@media (max-width: 700px) {
+    .npc-theater-toggle {
+        right: max(12px, env(safe-area-inset-right));
+        bottom: max(82px, calc(env(safe-area-inset-bottom) + 68px));
+        width: 46px;
+        height: 46px;
+    }
+
+    .npc-theater-backdrop.is-open { display: block; }
+
+    .npc-theater-panel {
+        inset: auto 0 0;
+        width: 100%;
+        max-height: min(86dvh, 820px);
+        padding-bottom: env(safe-area-inset-bottom);
+        border-width: 1px 0 0;
+        border-radius: 22px 22px 0 0;
+        transform: translateY(105%);
+        transform-origin: bottom;
+    }
+
+    .npc-theater-panel.is-open { transform: translateY(0); }
+
+    .npc-theater-panel:not(.mobile-window)::after {
+        content: '';
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        width: 38px;
+        height: 4px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, .26);
+        transform: translateX(-50%);
+    }
+
+    .npc-theater-panel.mobile-window {
+        inset: auto 10px 84px auto;
+        width: calc(100% - 20px);
+        max-height: calc(100dvh - 105px);
+        border: 1px solid var(--npc-theater-border);
+        border-radius: 18px;
+        transform: translateY(15px) scale(.98);
+    }
+
+    .npc-theater-panel.mobile-window.is-open { transform: translateY(0) scale(1); }
+    .npc-theater-header { padding-top: 14px; cursor: default; touch-action: auto; }
+    .npc-theater-scene { padding: 13px 14px; }
+    .npc-theater-list { padding: 11px; }
+    .npc-theater-status-grid { grid-template-columns: 1fr; }
+    .npc-theater-setting-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .npc-theater-panel,
+    .npc-theater-panel *,
+    .npc-theater-toggle { animation: none !important; transition-duration: .01ms !important; }
+}
+
+
