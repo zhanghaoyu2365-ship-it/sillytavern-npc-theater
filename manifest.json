@@ -1,0 +1,16 @@
+{
+    "display_name": "NPC 小剧场",
+    "loading_order": 50,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Codex",
+    "version": "1.0.0",
+    "homePage": "https://github.com/zhanghaoyu2365-ship-it/sillytavern-npc-theater",
+    "auto_update": true,
+    "hooks": {
+        "activate": "init"
+    }
+}
+
