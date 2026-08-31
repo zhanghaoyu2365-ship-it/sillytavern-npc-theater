@@ -61,6 +61,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     mobileBottomSheet: true,
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     panelPosition: null,
+    togglePosition: null,
 });
 
 let settings;
@@ -161,10 +162,19 @@ function createTheaterUi() {
     `;
 
     document.body.append(toggle, backdrop, panel);
+    restoreTogglePosition();
     restorePanelPosition();
     applyAppearanceSettings();
 
-    toggle.addEventListener('click', openPanel);
+    makeToggleDraggable(toggle);
+    toggle.addEventListener('click', event => {
+        if (toggle.dataset.suppressClick === 'true') {
+            event.preventDefault();
+            toggle.dataset.suppressClick = 'false';
+            return;
+        }
+        openPanel();
+    });
     backdrop.addEventListener('click', closePanel);
     panel.querySelector('#npc-theater-close').addEventListener('click', closePanel);
     panel.querySelector('#npc-theater-refresh').addEventListener('click', () => {
@@ -179,6 +189,7 @@ function createTheaterUi() {
     makePanelDraggable(panel, panel.querySelector('#npc-theater-drag-handle'));
     enableMobileSwipeToClose(panel);
     window.addEventListener('resize', () => {
+        restoreTogglePosition();
         if (usesBottomSheet()) clearInlinePosition(panel);
         else restorePanelPosition();
     });
@@ -222,6 +233,77 @@ function clearInlinePosition(panel) {
     panel.style.removeProperty('top');
     panel.style.removeProperty('right');
     panel.style.removeProperty('bottom');
+}
+
+function restoreTogglePosition() {
+    const toggle = document.getElementById('npc-theater-toggle');
+    if (!toggle || !settings.togglePosition) return;
+    const width = toggle.offsetWidth || 50;
+    const height = toggle.offsetHeight || 50;
+    const savedLeft = Number(settings.togglePosition.left);
+    const savedTop = Number(settings.togglePosition.top);
+    const left = Math.max(8, Math.min(window.innerWidth - width - 8, Number.isFinite(savedLeft) ? savedLeft : 8));
+    const top = Math.max(8, Math.min(window.innerHeight - height - 8, Number.isFinite(savedTop) ? savedTop : 8));
+    toggle.style.left = `${left}px`;
+    toggle.style.top = `${top}px`;
+    toggle.style.right = 'auto';
+    toggle.style.bottom = 'auto';
+}
+
+function makeToggleDraggable(toggle) {
+    let drag = null;
+
+    toggle.addEventListener('pointerdown', event => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        const rect = toggle.getBoundingClientRect();
+        drag = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startLeft: rect.left,
+            startTop: rect.top,
+            moved: false,
+        };
+        toggle.dataset.suppressClick = 'false';
+        try {
+            toggle.setPointerCapture(event.pointerId);
+        } catch {
+            // Window-level listeners below keep dragging functional.
+        }
+    });
+
+    window.addEventListener('pointermove', event => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        const deltaX = event.clientX - drag.startX;
+        const deltaY = event.clientY - drag.startY;
+        if (!drag.moved && Math.hypot(deltaX, deltaY) < 4) return;
+        event.preventDefault();
+        drag.moved = true;
+        toggle.classList.add('is-dragging');
+        const width = toggle.offsetWidth || 50;
+        const height = toggle.offsetHeight || 50;
+        const left = Math.max(8, Math.min(window.innerWidth - width - 8, drag.startLeft + deltaX));
+        const top = Math.max(8, Math.min(window.innerHeight - height - 8, drag.startTop + deltaY));
+        toggle.style.left = `${left}px`;
+        toggle.style.top = `${top}px`;
+        toggle.style.right = 'auto';
+        toggle.style.bottom = 'auto';
+    });
+
+    const endDrag = event => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        const moved = drag.moved && event.type !== 'pointercancel';
+        drag = null;
+        toggle.classList.remove('is-dragging');
+        toggle.dataset.suppressClick = String(moved);
+        if (!moved) return;
+        const rect = toggle.getBoundingClientRect();
+        settings.togglePosition = { left: Math.round(rect.left), top: Math.round(rect.top) };
+        saveSettingsDebounced();
+    };
+
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
 }
 
 function restorePanelPosition() {
