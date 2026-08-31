@@ -517,7 +517,40 @@
 .npc-theater-settings #npc-theater-profile-fields,
 .npc-theater-settings #npc-theater-direct-fields { display: flex; flex-direction: column; gap: 7px; }
 
-@media (max-width: 700px) {
+.npc-theater-backdrop.is-mobile-layout.is-open { display: block; }
+
+.npc-theater-panel.is-bottom-sheet {
+    inset: auto 0 0 !important;
+    width: 100% !important;
+    max-height: min(86dvh, 820px) !important;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-width: 1px 0 0;
+    border-radius: 22px 22px 0 0;
+    transform: translateY(105%);
+    transform-origin: bottom;
+}
+
+.npc-theater-panel.is-bottom-sheet.is-open { transform: translateY(0); }
+
+.npc-theater-panel.is-bottom-sheet::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, .26);
+    transform: translateX(-50%);
+}
+
+.npc-theater-panel.is-bottom-sheet .npc-theater-header {
+    padding-top: 14px;
+    cursor: default;
+    touch-action: auto;
+}
+
+@media (max-width: 700px), (pointer: coarse) and (max-width: 1024px) {
     .npc-theater-toggle {
         right: max(12px, env(safe-area-inset-right));
         bottom: max(82px, calc(env(safe-area-inset-bottom) + 68px));
@@ -527,10 +560,10 @@
 
     .npc-theater-backdrop.is-open { display: block; }
 
-    .npc-theater-panel {
-        inset: auto 0 0;
-        width: 100%;
-        max-height: min(86dvh, 820px);
+    .npc-theater-panel:not(.mobile-window) {
+        inset: auto 0 0 !important;
+        width: 100% !important;
+        max-height: min(86dvh, 820px) !important;
         padding-bottom: env(safe-area-inset-bottom);
         border-width: 1px 0 0;
         border-radius: 22px 22px 0 0;
