@@ -28,6 +28,30 @@ export function clampNumber(value, min = 0, max = 100, fallback = 0) {
     return Math.min(max, Math.max(min, Math.round(number)));
 }
 
+export function resolveModelsEndpoint(value) {
+    const url = new URL(String(value || '').trim());
+    const path = url.pathname.replace(/\/+$/, '');
+    if (/\/models$/i.test(path)) return url.toString();
+    if (/\/chat\/completions$/i.test(path)) {
+        url.pathname = path.replace(/\/chat\/completions$/i, '/models');
+        return url.toString();
+    }
+    url.pathname = path === '' || path === '/' ? '/v1/models' : `${path}/models`;
+    return url.toString();
+}
+
+export function extractModelIds(payload) {
+    const source = Array.isArray(payload)
+        ? payload
+        : payload?.data ?? payload?.models ?? payload?.items ?? [];
+    if (!Array.isArray(source)) return [];
+    return [...new Set(source
+        .map(item => typeof item === 'string' ? item : item?.id ?? item?.name ?? item?.model)
+        .map(item => String(item ?? '').trim())
+        .filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+}
+
 function cleanText(value, fallback = '') {
     if (value === null || value === undefined) return fallback;
     const text = String(value).replace(/\0/g, '').trim();
@@ -284,5 +308,4 @@ export function themeHue(name) {
     }
     return Math.abs(hash) % 360;
 }
-
 
