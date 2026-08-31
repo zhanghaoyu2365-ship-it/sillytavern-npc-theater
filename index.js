@@ -10,7 +10,6 @@ import {
     getContext,
     saveMetadataDebounced,
 } from '../../../extensions.js';
-import { ConnectionManagerRequestService } from '../../shared.js';
 import {
     EMPTY_STATE,
     mergeTheaterState,
@@ -71,7 +70,8 @@ let rerunRequested = false;
 let activeController = null;
 let autoTimer = null;
 let lastError = '';
-let initialized = false;
+let initializationPromise = null;
+let ConnectionManagerRequestService = null;
 const collapsedNpcs = new Set();
 const selectedTabs = new Map();
 
@@ -522,6 +522,9 @@ function buildMessages(context) {
 }
 
 async function sendViaProfile(messages, options) {
+    if (!ConnectionManagerRequestService) {
+        throw new Error('当前 SillyTavern 版本不支持 Connection Profile 独立请求，请升级至 1.18.0+ 或使用自定义 API。');
+    }
     if (!settings.profileId) throw new Error('请先选择一个 Connection Profile。');
     const profile = ConnectionManagerRequestService.getProfile(settings.profileId);
     const apiMap = ConnectionManagerRequestService.validateProfile(profile);
@@ -822,6 +825,11 @@ function updateApiModeFields() {
 }
 
 function setupProfileDropdown() {
+    if (!ConnectionManagerRequestService) {
+        const dropdown = document.getElementById('npc-theater-profile');
+        if (dropdown) dropdown.append(new Option('需要 SillyTavern 1.18.0+', ''));
+        return;
+    }
     try {
         ConnectionManagerRequestService.handleDropdown('#npc-theater-profile', settings.profileId, profile => {
             settings.profileId = profile?.id || '';
@@ -903,9 +911,27 @@ function initialize() {
     console.info('[NPC Theater] initialized');
 }
 
-export async function init() {
-    if (initialized) return;
-    initialized = true;
+async function initializeExtension() {
+    try {
+        const sharedModule = await import('../../shared.js');
+        ConnectionManagerRequestService = sharedModule.ConnectionManagerRequestService ?? null;
+    } catch (error) {
+        console.warn('[NPC Theater] Connection Profile service unavailable; direct API mode remains available.', error);
+    }
     initialize();
+}
+
+export function init() {
+    initializationPromise ??= initializeExtension();
+    return initializationPromise;
+}
+
+// Compatibility fallback for SillyTavern builds that load module scripts but
+// do not invoke manifest activation hooks. `init()` is idempotent, so current
+// builds can safely invoke the exported hook after this fallback runs.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => void init(), { once: true });
+} else {
+    queueMicrotask(() => void init());
 }
 
