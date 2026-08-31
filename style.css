@@ -43,15 +43,6 @@
     transition: none;
 }
 
-.npc-theater-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(7, 5, 10, .48);
-    backdrop-filter: blur(2px);
-    z-index: 2147483000;
-}
-
 .npc-theater-panel {
     position: fixed;
     right: 22px;
@@ -517,42 +508,9 @@
 .npc-theater-settings #npc-theater-profile-fields,
 .npc-theater-settings #npc-theater-direct-fields { display: flex; flex-direction: column; gap: 7px; }
 
-.npc-theater-backdrop.is-mobile-layout.is-open { display: block; }
-
 .npc-theater-panel.is-mobile-layout {
     transition: none !important;
     animation: none !important;
-}
-
-.npc-theater-panel.is-bottom-sheet {
-    inset: auto 0 0 !important;
-    width: 100% !important;
-    max-height: min(86dvh, 820px) !important;
-    padding-bottom: env(safe-area-inset-bottom);
-    border-width: 1px 0 0;
-    border-radius: 22px 22px 0 0;
-    transform: translateY(105%);
-    transform-origin: bottom;
-}
-
-.npc-theater-panel.is-bottom-sheet.is-open { transform: translateY(0); }
-
-.npc-theater-panel.is-bottom-sheet::after {
-    content: '';
-    position: absolute;
-    top: 6px;
-    left: 50%;
-    width: 38px;
-    height: 4px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, .26);
-    transform: translateX(-50%);
-}
-
-.npc-theater-panel.is-bottom-sheet .npc-theater-header {
-    padding-top: 14px;
-    cursor: default;
-    touch-action: auto;
 }
 
 .npc-theater-panel.is-mobile-layout.mobile-window {
@@ -570,33 +528,6 @@
         height: 46px;
     }
 
-    .npc-theater-backdrop.is-open { display: block; }
-
-    .npc-theater-panel:not(.mobile-window) {
-        inset: auto 0 0 !important;
-        width: 100% !important;
-        max-height: min(86dvh, 820px) !important;
-        padding-bottom: env(safe-area-inset-bottom);
-        border-width: 1px 0 0;
-        border-radius: 22px 22px 0 0;
-        transform: translateY(105%);
-        transform-origin: bottom;
-    }
-
-    .npc-theater-panel.is-open { transform: translateY(0); }
-
-    .npc-theater-panel:not(.mobile-window)::after {
-        content: '';
-        position: absolute;
-        top: 6px;
-        left: 50%;
-        width: 38px;
-        height: 4px;
-        border-radius: 4px;
-        background: rgba(255, 255, 255, .26);
-        transform: translateX(-50%);
-    }
-
     .npc-theater-panel.mobile-window {
         inset: auto 10px 84px auto;
         width: calc(100% - 20px);
@@ -607,7 +538,6 @@
     }
 
     .npc-theater-panel.mobile-window.is-open { transform: translateY(0) scale(1); }
-    .npc-theater-panel:not(.mobile-window) .npc-theater-header { padding-top: 14px; cursor: default; touch-action: auto; }
     .npc-theater-panel.mobile-window .npc-theater-header { cursor: grab; touch-action: none; }
     .npc-theater-panel.mobile-window.is-dragging .npc-theater-header { cursor: grabbing; }
     .npc-theater-scene { padding: 13px 14px; }
