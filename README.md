@@ -12,6 +12,7 @@
 - 圆形入口按钮支持鼠标与触屏拖动并记忆位置；悬浮窗始终贴着入口出现，并与入口绑定移动。
 - 支持自动生成、Swipe 后更新、手动刷新、停止、失败重试和 API 测试。
 - 独立系统提示词、Temperature、Max Tokens、上下文条数和 JSON Schema 开关。
+- 自定义 OpenAI-Compatible API 会自动从 `/models` 拉取模型列表供下拉选择，并保留手动模型 ID 兜底。
 
 ## 兼容性
 
@@ -49,7 +50,7 @@ https://github.com/zhanghaoyu2365-ship-it/sillytavern-npc-theater
 
 ## 自定义 OpenAI-Compatible 模式
 
-填写完整 Chat Completions Endpoint（例如 `https://example.com/v1/chat/completions`）、Model ID 和 API Key。
+填写完整 Chat Completions Endpoint（例如 `https://example.com/v1/chat/completions`）和 API Key。扩展会自动推导 `/v1/models` 地址并拉取模型列表，随后从下拉框选择模型；若服务不支持模型列表接口，也可手动填写 Model ID。
 
 注意：
 
