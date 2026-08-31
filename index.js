@@ -73,6 +73,7 @@ let autoTimer = null;
 let lastError = '';
 let initializationPromise = null;
 let ConnectionManagerRequestService = null;
+let panelOpenedAt = 0;
 const collapsedNpcs = new Set();
 const selectedTabs = new Map();
 
@@ -108,7 +109,9 @@ function saveChatState() {
 }
 
 function isMobile() {
-    return matchMedia('(max-width: 700px)').matches;
+    const responsiveLayout = matchMedia('(max-width: 700px), (pointer: coarse) and (max-width: 1024px)').matches;
+    const touchScreen = navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1024;
+    return responsiveLayout || touchScreen;
 }
 
 function usesBottomSheet() {
@@ -180,7 +183,15 @@ function createTheaterUi() {
         // Open directly on a genuine tap while still ignoring completed drags.
         if (toggle.dataset.suppressClick !== 'true') openPanel();
     }, { passive: true });
-    backdrop.addEventListener('click', closePanel);
+    backdrop.addEventListener('click', event => {
+        // A delayed mobile click can be retargeted to the newly visible
+        // backdrop and close the sheet immediately after it opens.
+        if (Date.now() - panelOpenedAt < 650) {
+            event.preventDefault();
+            return;
+        }
+        closePanel();
+    });
     panel.querySelector('#npc-theater-close').addEventListener('click', closePanel);
     panel.querySelector('#npc-theater-refresh').addEventListener('click', () => {
         if (generating) activeController?.abort();
@@ -203,15 +214,22 @@ function createTheaterUi() {
 function applyAppearanceSettings() {
     const panel = document.getElementById('npc-theater-panel');
     if (!panel || !settings) return;
+    const mobileLayout = isMobile();
+    const bottomSheet = mobileLayout && settings.mobileBottomSheet;
     panel.classList.toggle('no-glass', !settings.glassEffect);
     panel.classList.toggle('no-animation', !settings.animations);
-    panel.classList.toggle('mobile-window', !settings.mobileBottomSheet);
+    panel.classList.toggle('is-bottom-sheet', bottomSheet);
+    panel.classList.toggle('mobile-window', mobileLayout && !settings.mobileBottomSheet);
+    document.getElementById('npc-theater-backdrop')?.classList.toggle('is-mobile-layout', bottomSheet);
 }
 
 function openPanel() {
     const panel = document.getElementById('npc-theater-panel');
     const backdrop = document.getElementById('npc-theater-backdrop');
     if (!panel) return;
+    applyAppearanceSettings();
+    if (usesBottomSheet()) clearInlinePosition(panel);
+    panelOpenedAt = Date.now();
     panel.classList.add('is-open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop?.classList.add('is-open');
