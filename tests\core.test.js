@@ -81,14 +81,33 @@ test('keeps relationship drift within eight points without a major event', () =>
     assert.deepEqual(relation, { favor: 51, trust: 17, guard: 56, interest: 74, stress: 50 });
 });
 
-test('preserves histories while hiding NPCs that leave the scene', () => {
-    const payload = sanitizePayload({ scene: {}, characters: [character('潘西')] });
-    const first = mergeTheaterState(EMPTY_STATE, payload, { now: 1000 });
-    const second = mergeTheaterState(first, sanitizePayload({ scene: {}, characters: [] }), { now: 2000 });
-    const record = second.npcDatabase[normalizeName('潘西')];
-    assert.equal(record.inScene, false);
-    assert.equal(record.diaryHistory.length, 1);
-    assert.deepEqual(second.activeNpcKeys, []);
-    assert.equal(summarizeContinuity(second).known_npcs[0].name, '潘西');
-});
+test('replaces mind and diary without preserving or prompting with their history', () => {
+    const first = mergeTheaterState(EMPTY_STATE, sanitizePayload({
+        scene: {},
+        characters: [character('潘西')],
+    }), { now: 1000 });
+    const second = mergeTheaterState(first, sanitizePayload({
+        scene: {},
+        characters: [character('潘西', {
+            mind: { surface: '新的念头。', deep: '新的动机。', unspoken: '新的话。' },
+            diary: { title: '新的一幕', content: '只记录这一轮。' },
+        })],
+    }), { now: 2000 });
+    const activeRecord = second.npcDatabase[normalizeName('潘西')];
+    assert.equal(activeRecord.current.mind.surface, '新的念头。');
+    assert.equal(activeRecord.current.diary.content, '只记录这一轮。');
+    assert.equal('mindHistory' in activeRecord, false);
+    assert.equal('diaryHistory' in activeRecord, false);
 
+    const third = mergeTheaterState(second, sanitizePayload({ scene: {}, characters: [] }), { now: 3000 });
+    const hiddenRecord = third.npcDatabase[normalizeName('潘西')];
+    assert.equal(hiddenRecord.inScene, false);
+    assert.equal('mind' in hiddenRecord.current, false);
+    assert.equal('diary' in hiddenRecord.current, false);
+    assert.deepEqual(third.activeNpcKeys, []);
+
+    const continuity = summarizeContinuity(third).known_npcs[0];
+    assert.equal(continuity.name, '潘西');
+    assert.equal('last_mind' in continuity, false);
+    assert.equal('latest_diary' in continuity, false);
+});

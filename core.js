@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const EMPTY_STATE = Object.freeze({
     schemaVersion: SCHEMA_VERSION,
@@ -215,13 +215,17 @@ function cloneState(previous) {
 
 export function mergeTheaterState(previous, payload, options = {}) {
     const now = Number(options.now) || Date.now();
-    const maxDiaryEntries = clampNumber(options.maxDiaryEntries, 1, 200, 50);
-    const maxMindHistory = clampNumber(options.maxMindHistory, 1, 100, 30);
-    const keepMindHistory = options.keepMindHistory !== false;
     const next = cloneState(previous);
 
     for (const record of Object.values(next.npcDatabase)) {
-        if (record && typeof record === 'object') record.inScene = false;
+        if (!record || typeof record !== 'object') continue;
+        record.inScene = false;
+        delete record.diaryHistory;
+        delete record.mindHistory;
+        if (record.current && typeof record.current === 'object') {
+            const { mind: _oldMind, diary: _oldDiary, ...persistentCurrent } = record.current;
+            record.current = persistentCurrent;
+        }
     }
 
     next.scene = { ...EMPTY_STATE.scene, ...(payload.scene ?? {}) };
@@ -237,30 +241,6 @@ export function mergeTheaterState(previous, payload, options = {}) {
             character.relationship_event?.major,
         );
         const current = { ...character, relationship };
-        const diaryHistory = Array.isArray(oldRecord?.diaryHistory) ? [...oldRecord.diaryHistory] : [];
-        const mindHistory = Array.isArray(oldRecord?.mindHistory) ? [...oldRecord.mindHistory] : [];
-        const diaryContent = cleanText(character.diary?.content);
-        const latestDiary = diaryHistory.at(-1);
-
-        if (diaryContent && latestDiary?.content !== diaryContent) {
-            diaryHistory.push({
-                title: cleanText(character.diary?.title, '无题'),
-                content: diaryContent,
-                createdAt: now,
-            });
-        }
-
-        if (keepMindHistory) {
-            const latestMind = mindHistory.at(-1);
-            const signature = JSON.stringify(character.mind ?? {});
-            if (!latestMind || latestMind.signature !== signature) {
-                mindHistory.push({
-                    ...character.mind,
-                    signature,
-                    createdAt: now,
-                });
-            }
-        }
 
         next.npcDatabase[key] = {
             key,
@@ -269,8 +249,6 @@ export function mergeTheaterState(previous, payload, options = {}) {
             firstSeenAt: oldRecord?.firstSeenAt || now,
             lastSeenAt: now,
             current,
-            diaryHistory: diaryHistory.slice(-maxDiaryEntries),
-            mindHistory: keepMindHistory ? mindHistory.slice(-maxMindHistory) : [],
         };
         next.activeNpcKeys.push(key);
     }
@@ -290,8 +268,6 @@ export function summarizeContinuity(state, limit = 15) {
             was_in_previous_scene: Boolean(record.inScene),
             relationship: record.current.relationship,
             last_status: record.current.status,
-            last_mind: record.current.mind,
-            latest_diary: record.diaryHistory?.at(-1) ?? null,
         }));
 
     return {
@@ -308,4 +284,3 @@ export function themeHue(name) {
     }
     return Math.abs(hash) % 360;
 }
-

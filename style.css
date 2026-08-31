@@ -449,12 +449,6 @@
 .npc-theater-mind-block h4 { margin-top: 3px; font-size: 10px; }
 .npc-theater-mind-block p { margin: 7px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 12px; line-height: 1.65; }
 
-.npc-theater-mind-history { margin-top: 10px; color: var(--npc-theater-muted); font-size: 9px; }
-.npc-theater-mind-history summary { cursor: pointer; }
-.npc-theater-mind-history > div { margin-top: 7px; padding: 7px 9px; border-left: 1px solid var(--npc-theater-border); }
-.npc-theater-mind-history time { font-size: 8px; }
-.npc-theater-mind-history p { margin: 3px 0 0; color: var(--npc-theater-ink); line-height: 1.45; }
-
 .npc-theater-diary-page {
     position: relative;
     margin-bottom: 10px;
@@ -468,8 +462,7 @@
     box-shadow: 0 7px 16px rgba(0, 0, 0, .1);
 }
 
-.npc-theater-diary-page time { color: #b69a70; font-size: 8px; letter-spacing: .1em; }
-.npc-theater-diary-page h4 { margin-top: 5px; font: 500 14px/1.3 Georgia, serif; }
+.npc-theater-diary-page h4 { font: 500 14px/1.3 Georgia, serif; }
 .npc-theater-diary-page p { margin: 9px 0 0; font: 11px/1.8 Georgia, 'Times New Roman', serif; white-space: pre-wrap; }
 .npc-theater-no-entry { color: var(--npc-theater-muted); font-size: 11px; text-align: center; }
 
@@ -554,4 +547,3 @@
     .npc-theater-panel *,
     .npc-theater-toggle { animation: none !important; transition-duration: .01ms !important; }
 }
-
