@@ -183,6 +183,14 @@ function createTheaterUi() {
         // Open directly on a genuine tap while still ignoring completed drags.
         if (toggle.dataset.suppressClick !== 'true') openPanel();
     }, { passive: true });
+    document.addEventListener('click', event => {
+        // A mobile synthetic click may be re-targeted after the panel appears,
+        // including to its close button. Shield the whole page briefly while
+        // still allowing the original toggle click to finish normally.
+        if (Date.now() - panelOpenedAt >= 800 || event.target === toggle || toggle.contains(event.target)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }, true);
     backdrop.addEventListener('click', event => {
         // A delayed mobile click can be retargeted to the newly visible
         // backdrop and close the sheet immediately after it opens.
@@ -218,6 +226,7 @@ function applyAppearanceSettings() {
     const bottomSheet = mobileLayout && settings.mobileBottomSheet;
     panel.classList.toggle('no-glass', !settings.glassEffect);
     panel.classList.toggle('no-animation', !settings.animations);
+    panel.classList.toggle('is-mobile-layout', mobileLayout);
     panel.classList.toggle('is-bottom-sheet', bottomSheet);
     panel.classList.toggle('mobile-window', mobileLayout && !settings.mobileBottomSheet);
     document.getElementById('npc-theater-backdrop')?.classList.toggle('is-mobile-layout', bottomSheet);
