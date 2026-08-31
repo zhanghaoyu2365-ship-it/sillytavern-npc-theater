@@ -255,13 +255,12 @@ function makeToggleDraggable(toggle) {
 
     toggle.addEventListener('pointerdown', event => {
         if (event.pointerType === 'mouse' && event.button !== 0) return;
-        const rect = toggle.getBoundingClientRect();
         drag = {
             pointerId: event.pointerId,
+            pointerType: event.pointerType,
             startX: event.clientX,
             startY: event.clientY,
-            startLeft: rect.left,
-            startTop: rect.top,
+            entries: createLinkedDragGroup(toggle),
             moved: false,
         };
         toggle.dataset.suppressClick = 'false';
@@ -276,34 +275,94 @@ function makeToggleDraggable(toggle) {
         if (!drag || event.pointerId !== drag.pointerId) return;
         const deltaX = event.clientX - drag.startX;
         const deltaY = event.clientY - drag.startY;
-        if (!drag.moved && Math.hypot(deltaX, deltaY) < 4) return;
+        const threshold = drag.pointerType === 'touch' ? 12 : 5;
+        if (!drag.moved && Math.hypot(deltaX, deltaY) < threshold) return;
         event.preventDefault();
         drag.moved = true;
-        toggle.classList.add('is-dragging');
-        const width = toggle.offsetWidth || 50;
-        const height = toggle.offsetHeight || 50;
-        const left = Math.max(8, Math.min(window.innerWidth - width - 8, drag.startLeft + deltaX));
-        const top = Math.max(8, Math.min(window.innerHeight - height - 8, drag.startTop + deltaY));
-        toggle.style.left = `${left}px`;
-        toggle.style.top = `${top}px`;
-        toggle.style.right = 'auto';
-        toggle.style.bottom = 'auto';
+        markDragGroup(drag.entries, true);
+        moveDragGroup(drag.entries, deltaX, deltaY);
     });
 
     const endDrag = event => {
         if (!drag || event.pointerId !== drag.pointerId) return;
-        const moved = drag.moved && event.type !== 'pointercancel';
+        const finishedDrag = drag;
+        const cancelled = event.type === 'pointercancel';
+        const moved = finishedDrag.moved && !cancelled;
         drag = null;
-        toggle.classList.remove('is-dragging');
-        toggle.dataset.suppressClick = String(moved);
-        if (!moved) return;
-        const rect = toggle.getBoundingClientRect();
-        settings.togglePosition = { left: Math.round(rect.left), top: Math.round(rect.top) };
-        saveSettingsDebounced();
+        markDragGroup(finishedDrag.entries, false);
+        toggle.dataset.suppressClick = String(!cancelled);
+        if (moved) {
+            saveDragGroup(finishedDrag.entries);
+            return;
+        }
+        if (!cancelled) openPanel();
     };
 
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
+}
+
+function readFixedPosition(element) {
+    const style = getComputedStyle(element);
+    const width = element.offsetWidth || 1;
+    const height = element.offsetHeight || 1;
+    const cssLeft = Number.parseFloat(style.left);
+    const cssTop = Number.parseFloat(style.top);
+    const cssRight = Number.parseFloat(style.right);
+    const cssBottom = Number.parseFloat(style.bottom);
+    const fallback = element.getBoundingClientRect();
+    const left = Number.isFinite(cssLeft)
+        ? cssLeft
+        : Number.isFinite(cssRight) ? window.innerWidth - width - cssRight : fallback.left;
+    const top = Number.isFinite(cssTop)
+        ? cssTop
+        : Number.isFinite(cssBottom) ? window.innerHeight - height - cssBottom : fallback.top;
+    return { element, left, top, width, height };
+}
+
+function createLinkedDragGroup(primary) {
+    const elements = new Set([primary]);
+    if (!usesBottomSheet()) {
+        const toggle = document.getElementById('npc-theater-toggle');
+        const panel = document.getElementById('npc-theater-panel');
+        if (toggle) elements.add(toggle);
+        if (panel) elements.add(panel);
+    }
+    return [...elements].map(readFixedPosition);
+}
+
+function moveDragGroup(entries, requestedX, requestedY) {
+    const groupLeft = Math.min(...entries.map(entry => entry.left));
+    const groupTop = Math.min(...entries.map(entry => entry.top));
+    const groupRight = Math.max(...entries.map(entry => entry.left + entry.width));
+    const groupBottom = Math.max(...entries.map(entry => entry.top + entry.height));
+    const minX = 8 - groupLeft;
+    const maxX = window.innerWidth - 8 - groupRight;
+    const minY = 8 - groupTop;
+    const maxY = window.innerHeight - 8 - groupBottom;
+    const deltaX = minX <= maxX ? Math.max(minX, Math.min(maxX, requestedX)) : requestedX;
+    const deltaY = minY <= maxY ? Math.max(minY, Math.min(maxY, requestedY)) : requestedY;
+
+    for (const entry of entries) {
+        entry.element.style.left = `${entry.left + deltaX}px`;
+        entry.element.style.top = `${entry.top + deltaY}px`;
+        entry.element.style.right = 'auto';
+        entry.element.style.bottom = 'auto';
+    }
+}
+
+function markDragGroup(entries, value) {
+    for (const { element } of entries) element.classList.toggle('is-dragging', value);
+}
+
+function saveDragGroup(entries) {
+    for (const { element } of entries) {
+        const position = readFixedPosition(element);
+        const saved = { left: Math.round(position.left), top: Math.round(position.top) };
+        if (element.id === 'npc-theater-toggle') settings.togglePosition = saved;
+        if (element.id === 'npc-theater-panel') settings.panelPosition = saved;
+    }
+    saveSettingsDebounced();
 }
 
 function restorePanelPosition() {
@@ -325,36 +384,32 @@ function makePanelDraggable(panel, handle) {
     handle.addEventListener('pointerdown', event => {
         if (usesBottomSheet() || (event.pointerType === 'mouse' && event.button !== 0) || event.target.closest('button')) return;
         event.preventDefault();
-        const rect = panel.getBoundingClientRect();
-        drag = { pointerId: event.pointerId, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top };
+        drag = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            entries: createLinkedDragGroup(panel),
+        };
         try {
             handle.setPointerCapture(event.pointerId);
         } catch {
             // Window-level pointer listeners below keep dragging functional.
         }
-        panel.classList.add('is-dragging');
+        markDragGroup(drag.entries, true);
     });
 
     window.addEventListener('pointermove', event => {
         if (!drag || event.pointerId !== drag.pointerId) return;
         event.preventDefault();
-        const width = panel.offsetWidth;
-        const height = panel.offsetHeight;
-        const left = Math.max(8, Math.min(window.innerWidth - width - 8, event.clientX - drag.offsetX));
-        const top = Math.max(8, Math.min(window.innerHeight - Math.min(height, window.innerHeight - 16) - 8, event.clientY - drag.offsetY));
-        panel.style.left = `${left}px`;
-        panel.style.top = `${top}px`;
-        panel.style.right = 'auto';
-        panel.style.bottom = 'auto';
+        moveDragGroup(drag.entries, event.clientX - drag.startX, event.clientY - drag.startY);
     });
 
     const endDrag = event => {
         if (!drag || event.pointerId !== drag.pointerId) return;
+        const finishedDrag = drag;
         drag = null;
-        panel.classList.remove('is-dragging');
-        const rect = panel.getBoundingClientRect();
-        settings.panelPosition = { left: Math.round(rect.left), top: Math.round(rect.top) };
-        saveSettingsDebounced();
+        markDragGroup(finishedDrag.entries, false);
+        saveDragGroup(finishedDrag.entries);
     };
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
