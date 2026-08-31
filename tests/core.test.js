@@ -3,13 +3,25 @@ import test from 'node:test';
 
 import {
     EMPTY_STATE,
+    extractModelIds,
     mergeTheaterState,
     normalizeName,
     parseTheaterResponse,
     sanitizePayload,
+    resolveModelsEndpoint,
     summarizeContinuity,
     themeHue,
 } from '../core.js';
+
+test('derives the OpenAI-compatible models endpoint', () => {
+    assert.equal(resolveModelsEndpoint('https://api.example.com/v1/chat/completions'), 'https://api.example.com/v1/models');
+    assert.equal(resolveModelsEndpoint('https://api.example.com/v1'), 'https://api.example.com/v1/models');
+});
+
+test('extracts and sorts common model-list response shapes', () => {
+    assert.deepEqual(extractModelIds({ data: [{ id: 'model-10' }, { id: 'model-2' }, { id: 'model-2' }] }), ['model-2', 'model-10']);
+    assert.deepEqual(extractModelIds({ models: ['beta', { name: 'alpha' }] }), ['alpha', 'beta']);
+});
 
 function character(name, overrides = {}) {
     return {
@@ -79,5 +91,4 @@ test('preserves histories while hiding NPCs that leave the scene', () => {
     assert.deepEqual(second.activeNpcKeys, []);
     assert.equal(summarizeContinuity(second).known_npcs[0].name, '潘西');
 });
-
 
