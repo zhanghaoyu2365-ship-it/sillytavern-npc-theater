@@ -25,7 +25,10 @@
     cursor: pointer;
     touch-action: none;
     user-select: none;
-    z-index: 40002;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    pointer-events: auto !important;
+    z-index: 2147483002;
     transition: transform .22s ease, box-shadow .22s ease;
 }
 
@@ -46,7 +49,7 @@
     inset: 0;
     background: rgba(7, 5, 10, .48);
     backdrop-filter: blur(2px);
-    z-index: 40000;
+    z-index: 2147483000;
 }
 
 .npc-theater-panel {
@@ -71,7 +74,7 @@
     transform: translateY(12px) scale(.98);
     transform-origin: bottom right;
     transition: opacity .2s ease, transform .24s cubic-bezier(.2, .8, .2, 1), visibility .2s;
-    z-index: 40001;
+    z-index: 2147483001;
     isolation: isolate;
 }
 
