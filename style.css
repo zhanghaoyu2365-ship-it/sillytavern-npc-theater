@@ -507,6 +507,9 @@
 .npc-theater-settings .hidden { display: none !important; }
 .npc-theater-settings #npc-theater-profile-fields,
 .npc-theater-settings #npc-theater-direct-fields { display: flex; flex-direction: column; gap: 7px; }
+.npc-theater-model-actions { display: flex; align-items: center; gap: 8px; }
+.npc-theater-model-actions .menu_button { flex: 0 0 auto; }
+.npc-theater-model-actions small { flex: 1; overflow-wrap: anywhere; }
 
 .npc-theater-panel.is-mobile-layout {
     transition: none !important;
