@@ -551,7 +551,9 @@
     }
 
     .npc-theater-panel.mobile-window.is-open { transform: translateY(0) scale(1); }
-    .npc-theater-header { padding-top: 14px; cursor: default; touch-action: auto; }
+    .npc-theater-panel:not(.mobile-window) .npc-theater-header { padding-top: 14px; cursor: default; touch-action: auto; }
+    .npc-theater-panel.mobile-window .npc-theater-header { cursor: grab; touch-action: none; }
+    .npc-theater-panel.mobile-window.is-dragging .npc-theater-header { cursor: grabbing; }
     .npc-theater-scene { padding: 13px 14px; }
     .npc-theater-list { padding: 11px; }
     .npc-theater-status-grid { grid-template-columns: 1fr; }
@@ -563,5 +565,4 @@
     .npc-theater-panel *,
     .npc-theater-toggle { animation: none !important; transition-duration: .01ms !important; }
 }
-
 
