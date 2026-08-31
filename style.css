@@ -519,6 +519,11 @@
 
 .npc-theater-backdrop.is-mobile-layout.is-open { display: block; }
 
+.npc-theater-panel.is-mobile-layout {
+    transition: none !important;
+    animation: none !important;
+}
+
 .npc-theater-panel.is-bottom-sheet {
     inset: auto 0 0 !important;
     width: 100% !important;
@@ -548,6 +553,13 @@
     padding-top: 14px;
     cursor: default;
     touch-action: auto;
+}
+
+.npc-theater-panel.is-mobile-layout.mobile-window {
+    width: calc(100% - 20px);
+    max-height: calc(100dvh - 105px);
+    border: 1px solid var(--npc-theater-border);
+    border-radius: 18px;
 }
 
 @media (max-width: 700px), (pointer: coarse) and (max-width: 1024px) {
