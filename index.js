@@ -12,9 +12,11 @@ import {
 } from '../../../extensions.js';
 import {
     EMPTY_STATE,
+    extractModelIds,
     mergeTheaterState,
     normalizeName,
     parseTheaterResponse,
+    resolveModelsEndpoint,
     sanitizePayload,
     summarizeContinuity,
     themeHue,
@@ -73,6 +75,8 @@ let lastError = '';
 let initializationPromise = null;
 let ConnectionManagerRequestService = null;
 let lastToggleActivationAt = 0;
+let modelFetchTimer = null;
+let modelFetchController = null;
 const collapsedNpcs = new Set();
 const selectedTabs = new Map();
 
@@ -730,6 +734,82 @@ function resolveDirectEndpoint(value) {
     return url.toString();
 }
 
+function populateDirectModelOptions(modelIds = []) {
+    const select = document.getElementById('npc-theater-model');
+    const manualInput = document.getElementById('npc-theater-model-manual');
+    if (!select || !manualInput) return;
+    const current = String(settings.directModel || '').trim();
+    select.replaceChildren(new Option('请选择模型', ''));
+    for (const modelId of modelIds) select.append(new Option(modelId, modelId));
+    if (current && !modelIds.includes(current)) select.append(new Option(`${current}（当前/手动）`, current));
+    select.value = current && [...select.options].some(option => option.value === current) ? current : '';
+    manualInput.value = current;
+}
+
+function scheduleDirectModelFetch(delay = 650) {
+    clearTimeout(modelFetchTimer);
+    if (settings.apiMode !== 'direct' || !String(settings.directEndpoint || '').trim()) return;
+    modelFetchTimer = setTimeout(() => void fetchDirectModels({ manual: false }), delay);
+}
+
+async function fetchDirectModels({ manual = false } = {}) {
+    const button = document.getElementById('npc-theater-fetch-models');
+    const status = document.getElementById('npc-theater-model-status');
+    const endpoint = String(settings.directEndpoint || '').trim();
+    if (!endpoint) {
+        if (status) status.textContent = '请先填写 API Endpoint。';
+        if (manual) toast('warning', '请先填写 API Endpoint。');
+        return;
+    }
+
+    modelFetchController?.abort();
+    const controller = new AbortController();
+    modelFetchController = controller;
+    if (button) {
+        button.disabled = true;
+        button.textContent = '正在拉取…';
+    }
+    if (status) status.textContent = '正在读取模型列表…';
+
+    try {
+        const apiKey = sessionStorage.getItem(DIRECT_KEY_STORAGE) || '';
+        const headers = { Accept: 'application/json' };
+        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+        const response = await fetch(resolveModelsEndpoint(endpoint), {
+            method: 'GET',
+            headers,
+            signal: controller.signal,
+        });
+        const text = await response.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            data = null;
+        }
+        if (!response.ok) {
+            const detail = data?.error?.message || text.slice(0, 240) || `HTTP ${response.status}`;
+            throw new Error(detail);
+        }
+        const modelIds = extractModelIds(data);
+        if (!modelIds.length) throw new Error('接口返回成功，但没有找到模型 ID。');
+        populateDirectModelOptions(modelIds);
+        if (status) status.textContent = `已加载 ${modelIds.length} 个模型，请从下拉框选择。`;
+        if (manual) toast('success', `已加载 ${modelIds.length} 个模型。`);
+    } catch (error) {
+        if (error?.name === 'AbortError') return;
+        const message = `模型列表拉取失败：${error?.message || String(error)}`;
+        if (status) status.textContent = `${message} 可在下方手动填写模型 ID。`;
+        if (manual) toast('error', message);
+    } finally {
+        if (modelFetchController === controller) modelFetchController = null;
+        if (button) {
+            button.disabled = false;
+            button.textContent = '↻ 重新拉取模型';
+        }
+    }
+}
+
 function extractDirectContent(data) {
     const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? data?.output_text;
     if (Array.isArray(content)) {
@@ -900,7 +980,12 @@ function createSettingsUi() {
                 <div id="npc-theater-direct-fields">
                     <label>API Endpoint <input id="npc-theater-endpoint" class="text_pole" type="url" placeholder="https://example.com/v1/chat/completions"></label>
                     <label>API Key <input id="npc-theater-api-key" class="text_pole" type="password" autocomplete="off" placeholder="仅保存在当前浏览器会话"></label>
-                    <label>Model ID <input id="npc-theater-model" class="text_pole" type="text" placeholder="model-name"></label>
+                    <label>模型列表 <select id="npc-theater-model" class="text_pole"><option value="">请先填写 API 地址</option></select></label>
+                    <div class="npc-theater-model-actions">
+                        <button type="button" id="npc-theater-fetch-models" class="menu_button">↻ 拉取模型列表</button>
+                        <small id="npc-theater-model-status">填写 API 地址和 Key 后将自动拉取。</small>
+                    </div>
+                    <label>手动模型 ID <input id="npc-theater-model-manual" class="text_pole" type="text" placeholder="列表不可用时可手动填写"></label>
                     <small class="npc-theater-warning">直连模式受浏览器 CORS 限制；API Key 只写入 sessionStorage，关闭标签页后清除。优先使用 Connection Profile。</small>
                 </div>
                 <div class="npc-theater-setting-grid">
@@ -936,7 +1021,7 @@ function createSettingsUi() {
     byId('npc-theater-api-mode').value = settings.apiMode;
     byId('npc-theater-endpoint').value = settings.directEndpoint;
     byId('npc-theater-api-key').value = sessionStorage.getItem(DIRECT_KEY_STORAGE) || '';
-    byId('npc-theater-model').value = settings.directModel;
+    populateDirectModelOptions([]);
     byId('npc-theater-temperature').value = settings.temperature;
     byId('npc-theater-max-tokens').value = settings.maxTokens;
     byId('npc-theater-retries').value = settings.retries;
@@ -956,7 +1041,6 @@ function createSettingsUi() {
     bind('npc-theater-swipe', 'generateOnSwipe', input => input.checked);
     bind('npc-theater-context', 'contextMessages', input => Number(input.value));
     bind('npc-theater-endpoint', 'directEndpoint', input => input.value.trim(), 'input');
-    bind('npc-theater-model', 'directModel', input => input.value.trim(), 'input');
     bind('npc-theater-temperature', 'temperature', input => Number(input.value));
     bind('npc-theater-max-tokens', 'maxTokens', input => Number(input.value));
     bind('npc-theater-retries', 'retries', input => Number(input.value));
@@ -972,11 +1056,26 @@ function createSettingsUi() {
         const value = event.target.value;
         if (value) sessionStorage.setItem(DIRECT_KEY_STORAGE, value);
         else sessionStorage.removeItem(DIRECT_KEY_STORAGE);
+        scheduleDirectModelFetch();
+    });
+    byId('npc-theater-endpoint').addEventListener('input', () => scheduleDirectModelFetch());
+    byId('npc-theater-model').addEventListener('change', event => {
+        settings.directModel = event.target.value;
+        byId('npc-theater-model-manual').value = event.target.value;
+        saveSettingsDebounced();
+    });
+    byId('npc-theater-model-manual').addEventListener('input', event => {
+        const value = event.target.value.trim();
+        settings.directModel = value;
+        const select = byId('npc-theater-model');
+        select.value = [...select.options].some(option => option.value === value) ? value : '';
+        saveSettingsDebounced();
     });
     byId('npc-theater-api-mode').addEventListener('change', event => {
         settings.apiMode = event.target.value;
         persistSettings();
         updateApiModeFields();
+        scheduleDirectModelFetch(0);
     });
     byId('npc-theater-reset-prompt').addEventListener('click', () => {
         settings.systemPrompt = DEFAULT_SYSTEM_PROMPT;
@@ -984,10 +1083,12 @@ function createSettingsUi() {
         persistSettings();
     });
     byId('npc-theater-test-api').addEventListener('click', testApiConnection);
+    byId('npc-theater-fetch-models').addEventListener('click', () => void fetchDirectModels({ manual: true }));
     byId('npc-theater-clear-chat').addEventListener('click', clearCurrentChatData);
 
     setupProfileDropdown();
     updateApiModeFields();
+    scheduleDirectModelFetch(0);
 }
 
 function updateApiModeFields() {
