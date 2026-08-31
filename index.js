@@ -110,6 +110,10 @@ function isMobile() {
     return matchMedia('(max-width: 700px)').matches;
 }
 
+function usesBottomSheet() {
+    return isMobile() && settings.mobileBottomSheet;
+}
+
 function createElement(tag, className = '', text = '') {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -175,7 +179,7 @@ function createTheaterUi() {
     makePanelDraggable(panel, panel.querySelector('#npc-theater-drag-handle'));
     enableMobileSwipeToClose(panel);
     window.addEventListener('resize', () => {
-        if (isMobile()) clearInlinePosition(panel);
+        if (usesBottomSheet()) clearInlinePosition(panel);
         else restorePanelPosition();
     });
 }
@@ -222,7 +226,7 @@ function clearInlinePosition(panel) {
 
 function restorePanelPosition() {
     const panel = document.getElementById('npc-theater-panel');
-    if (!panel || isMobile() || !settings.panelPosition) return;
+    if (!panel || usesBottomSheet() || !settings.panelPosition) return;
     const width = panel.offsetWidth || 430;
     const height = panel.offsetHeight || 600;
     const left = Math.max(8, Math.min(window.innerWidth - width - 8, Number(settings.panelPosition.left) || 8));
@@ -237,15 +241,21 @@ function makePanelDraggable(panel, handle) {
     let drag = null;
 
     handle.addEventListener('pointerdown', event => {
-        if (isMobile() || event.button !== 0 || event.target.closest('button')) return;
+        if (usesBottomSheet() || (event.pointerType === 'mouse' && event.button !== 0) || event.target.closest('button')) return;
+        event.preventDefault();
         const rect = panel.getBoundingClientRect();
         drag = { pointerId: event.pointerId, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top };
-        handle.setPointerCapture(event.pointerId);
+        try {
+            handle.setPointerCapture(event.pointerId);
+        } catch {
+            // Window-level pointer listeners below keep dragging functional.
+        }
         panel.classList.add('is-dragging');
     });
 
-    handle.addEventListener('pointermove', event => {
+    window.addEventListener('pointermove', event => {
         if (!drag || event.pointerId !== drag.pointerId) return;
+        event.preventDefault();
         const width = panel.offsetWidth;
         const height = panel.offsetHeight;
         const left = Math.max(8, Math.min(window.innerWidth - width - 8, event.clientX - drag.offsetX));
@@ -264,14 +274,14 @@ function makePanelDraggable(panel, handle) {
         settings.panelPosition = { left: Math.round(rect.left), top: Math.round(rect.top) };
         saveSettingsDebounced();
     };
-    handle.addEventListener('pointerup', endDrag);
-    handle.addEventListener('pointercancel', endDrag);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
 }
 
 function enableMobileSwipeToClose(panel) {
     let startY = null;
     panel.addEventListener('touchstart', event => {
-        if (!isMobile() || !settings.mobileBottomSheet || !event.target.closest('.npc-theater-header')) return;
+        if (!usesBottomSheet() || !event.target.closest('.npc-theater-header')) return;
         startY = event.touches[0]?.clientY ?? null;
     }, { passive: true });
     panel.addEventListener('touchend', event => {
