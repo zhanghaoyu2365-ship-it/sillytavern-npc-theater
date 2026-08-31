@@ -175,6 +175,11 @@ function createTheaterUi() {
         }
         openPanel();
     });
+    toggle.addEventListener('touchend', () => {
+        // Some mobile cloud deployments suppress the synthetic click event.
+        // Open directly on a genuine tap while still ignoring completed drags.
+        if (toggle.dataset.suppressClick !== 'true') openPanel();
+    }, { passive: true });
     backdrop.addEventListener('click', closePanel);
     panel.querySelector('#npc-theater-close').addEventListener('click', closePanel);
     panel.querySelector('#npc-theater-refresh').addEventListener('click', () => {
@@ -279,6 +284,7 @@ function makeToggleDraggable(toggle) {
         if (!drag.moved && Math.hypot(deltaX, deltaY) < threshold) return;
         event.preventDefault();
         drag.moved = true;
+        toggle.dataset.suppressClick = 'true';
         markDragGroup(drag.entries, true);
         moveDragGroup(drag.entries, deltaX, deltaY);
     });
