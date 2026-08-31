@@ -58,7 +58,6 @@ const DEFAULT_SETTINGS = Object.freeze({
     glassEffect: true,
     animations: true,
     showRelationships: true,
-    mobileBottomSheet: true,
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     panelPosition: null,
     togglePosition: null,
@@ -73,7 +72,7 @@ let autoTimer = null;
 let lastError = '';
 let initializationPromise = null;
 let ConnectionManagerRequestService = null;
-let panelOpenedAt = 0;
+let lastToggleActivationAt = 0;
 const collapsedNpcs = new Set();
 const selectedTabs = new Map();
 
@@ -114,10 +113,6 @@ function isMobile() {
     return responsiveLayout || touchScreen;
 }
 
-function usesBottomSheet() {
-    return isMobile() && settings.mobileBottomSheet;
-}
-
 function createElement(tag, className = '', text = '') {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -138,9 +133,6 @@ function createTheaterUi() {
 
     const toggle = createIconButton('🎭', '打开 NPC 小剧场', 'npc-theater-toggle');
     toggle.id = 'npc-theater-toggle';
-
-    const backdrop = createElement('div', 'npc-theater-backdrop');
-    backdrop.id = 'npc-theater-backdrop';
 
     const panel = createElement('aside', 'npc-theater-panel');
     panel.id = 'npc-theater-panel';
@@ -164,7 +156,7 @@ function createTheaterUi() {
         <main class="npc-theater-list" id="npc-theater-list"></main>
     `;
 
-    document.body.append(toggle, backdrop, panel);
+    document.body.append(toggle, panel);
     restoreTogglePosition();
     restorePanelPosition();
     applyAppearanceSettings();
@@ -176,30 +168,11 @@ function createTheaterUi() {
             toggle.dataset.suppressClick = 'false';
             return;
         }
-        openPanel();
+        activateToggle();
     });
     toggle.addEventListener('touchend', () => {
-        // Some mobile cloud deployments suppress the synthetic click event.
-        // Open directly on a genuine tap while still ignoring completed drags.
-        if (toggle.dataset.suppressClick !== 'true') openPanel();
+        if (toggle.dataset.suppressClick !== 'true') activateToggle();
     }, { passive: true });
-    document.addEventListener('click', event => {
-        // A mobile synthetic click may be re-targeted after the panel appears,
-        // including to its close button. Shield the whole page briefly while
-        // still allowing the original toggle click to finish normally.
-        if (Date.now() - panelOpenedAt >= 800 || event.target === toggle || toggle.contains(event.target)) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-    }, true);
-    backdrop.addEventListener('click', event => {
-        // A delayed mobile click can be retargeted to the newly visible
-        // backdrop and close the sheet immediately after it opens.
-        if (Date.now() - panelOpenedAt < 650) {
-            event.preventDefault();
-            return;
-        }
-        closePanel();
-    });
     panel.querySelector('#npc-theater-close').addEventListener('click', closePanel);
     panel.querySelector('#npc-theater-refresh').addEventListener('click', () => {
         if (generating) activeController?.abort();
@@ -211,11 +184,9 @@ function createTheaterUi() {
     });
 
     makePanelDraggable(panel, panel.querySelector('#npc-theater-drag-handle'));
-    enableMobileSwipeToClose(panel);
     window.addEventListener('resize', () => {
         restoreTogglePosition();
-        if (usesBottomSheet()) clearInlinePosition(panel);
-        else restorePanelPosition();
+        if (panel.classList.contains('is-open')) positionPanelWithToggle();
     });
 }
 
@@ -223,33 +194,66 @@ function applyAppearanceSettings() {
     const panel = document.getElementById('npc-theater-panel');
     if (!panel || !settings) return;
     const mobileLayout = isMobile();
-    const bottomSheet = mobileLayout && settings.mobileBottomSheet;
     panel.classList.toggle('no-glass', !settings.glassEffect);
     panel.classList.toggle('no-animation', !settings.animations);
     panel.classList.toggle('is-mobile-layout', mobileLayout);
-    panel.classList.toggle('is-bottom-sheet', bottomSheet);
-    panel.classList.toggle('mobile-window', mobileLayout && !settings.mobileBottomSheet);
-    document.getElementById('npc-theater-backdrop')?.classList.toggle('is-mobile-layout', bottomSheet);
+    panel.classList.remove('is-bottom-sheet');
+    panel.classList.toggle('mobile-window', mobileLayout);
+}
+
+function activateToggle() {
+    const now = Date.now();
+    if (now - lastToggleActivationAt < 350) return;
+    lastToggleActivationAt = now;
+    const panel = document.getElementById('npc-theater-panel');
+    if (panel?.classList.contains('is-open')) closePanel();
+    else openPanel();
+}
+
+function positionPanelWithToggle() {
+    const panel = document.getElementById('npc-theater-panel');
+    const toggle = document.getElementById('npc-theater-toggle');
+    if (!panel || !toggle) return;
+    const toggleRect = toggle.getBoundingClientRect();
+    const width = Math.min(panel.offsetWidth || 440, window.innerWidth - 16);
+    const height = Math.min(panel.offsetHeight || 600, window.innerHeight - 16);
+    const gap = 10;
+    const maxLeft = Math.max(8, window.innerWidth - width - 8);
+    const maxTop = Math.max(8, window.innerHeight - height - 8);
+    const left = Math.max(8, Math.min(maxLeft, toggleRect.right - width));
+    let top = toggleRect.top - height - gap;
+    if (top < 8) top = toggleRect.bottom + gap;
+    top = Math.max(8, Math.min(maxTop, top));
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    settings.panelPosition = { left: Math.round(left), top: Math.round(top) };
 }
 
 function openPanel() {
     const panel = document.getElementById('npc-theater-panel');
-    const backdrop = document.getElementById('npc-theater-backdrop');
     if (!panel) return;
     applyAppearanceSettings();
-    if (usesBottomSheet()) clearInlinePosition(panel);
-    panelOpenedAt = Date.now();
+    positionPanelWithToggle();
     panel.classList.add('is-open');
     panel.setAttribute('aria-hidden', 'false');
-    backdrop?.classList.add('is-open');
+    const toggle = document.getElementById('npc-theater-toggle');
+    toggle?.setAttribute('aria-expanded', 'true');
+    toggle?.setAttribute('aria-label', '关闭 NPC 小剧场');
+    if (toggle) toggle.title = '关闭 NPC 小剧场';
     renderPanel();
+    requestAnimationFrame(positionPanelWithToggle);
 }
 
 function closePanel() {
     const panel = document.getElementById('npc-theater-panel');
     panel?.classList.remove('is-open');
     panel?.setAttribute('aria-hidden', 'true');
-    document.getElementById('npc-theater-backdrop')?.classList.remove('is-open');
+    const toggle = document.getElementById('npc-theater-toggle');
+    toggle?.setAttribute('aria-expanded', 'false');
+    toggle?.setAttribute('aria-label', '打开 NPC 小剧场');
+    if (toggle) toggle.title = '打开 NPC 小剧场';
 }
 
 function openSettings() {
@@ -258,13 +262,6 @@ function openSettings() {
         document.querySelector('#extensions-settings-button .drawer-toggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     }
     setTimeout(() => document.getElementById('npc-theater-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 180);
-}
-
-function clearInlinePosition(panel) {
-    panel.style.removeProperty('left');
-    panel.style.removeProperty('top');
-    panel.style.removeProperty('right');
-    panel.style.removeProperty('bottom');
 }
 
 function restoreTogglePosition() {
@@ -328,7 +325,7 @@ function makeToggleDraggable(toggle) {
             saveDragGroup(finishedDrag.entries);
             return;
         }
-        if (!cancelled) openPanel();
+        if (!cancelled) activateToggle();
     };
 
     window.addEventListener('pointerup', endDrag);
@@ -355,12 +352,10 @@ function readFixedPosition(element) {
 
 function createLinkedDragGroup(primary) {
     const elements = new Set([primary]);
-    if (!usesBottomSheet()) {
-        const toggle = document.getElementById('npc-theater-toggle');
-        const panel = document.getElementById('npc-theater-panel');
-        if (toggle) elements.add(toggle);
-        if (panel) elements.add(panel);
-    }
+    const toggle = document.getElementById('npc-theater-toggle');
+    const panel = document.getElementById('npc-theater-panel');
+    if (toggle) elements.add(toggle);
+    if (panel) elements.add(panel);
     return [...elements].map(readFixedPosition);
 }
 
@@ -400,7 +395,7 @@ function saveDragGroup(entries) {
 
 function restorePanelPosition() {
     const panel = document.getElementById('npc-theater-panel');
-    if (!panel || usesBottomSheet() || !settings.panelPosition) return;
+    if (!panel || !settings.panelPosition) return;
     const width = panel.offsetWidth || 430;
     const height = panel.offsetHeight || 600;
     const left = Math.max(8, Math.min(window.innerWidth - width - 8, Number(settings.panelPosition.left) || 8));
@@ -415,7 +410,7 @@ function makePanelDraggable(panel, handle) {
     let drag = null;
 
     handle.addEventListener('pointerdown', event => {
-        if (usesBottomSheet() || (event.pointerType === 'mouse' && event.button !== 0) || event.target.closest('button')) return;
+        if ((event.pointerType === 'mouse' && event.button !== 0) || event.target.closest('button')) return;
         event.preventDefault();
         drag = {
             pointerId: event.pointerId,
@@ -448,20 +443,6 @@ function makePanelDraggable(panel, handle) {
     window.addEventListener('pointercancel', endDrag);
 }
 
-function enableMobileSwipeToClose(panel) {
-    let startY = null;
-    panel.addEventListener('touchstart', event => {
-        if (!usesBottomSheet() || !event.target.closest('.npc-theater-header')) return;
-        startY = event.touches[0]?.clientY ?? null;
-    }, { passive: true });
-    panel.addEventListener('touchend', event => {
-        if (startY === null) return;
-        const endY = event.changedTouches[0]?.clientY ?? startY;
-        if (endY - startY > 90) closePanel();
-        startY = null;
-    }, { passive: true });
-}
-
 function setLoading(value, statusText = '') {
     const panel = document.getElementById('npc-theater-panel');
     const refresh = document.getElementById('npc-theater-refresh');
@@ -477,6 +458,9 @@ function renderPanel() {
     const sceneRoot = document.getElementById('npc-theater-scene');
     const listRoot = document.getElementById('npc-theater-list');
     if (!sceneRoot || !listRoot) return;
+    if (document.getElementById('npc-theater-panel')?.classList.contains('is-open')) {
+        requestAnimationFrame(positionPanelWithToggle);
+    }
 
     const activeRecords = (currentState.activeNpcKeys ?? [])
         .map(key => currentState.npcDatabase?.[key])
@@ -926,7 +910,6 @@ function createSettingsUi() {
                 <label class="checkbox_label"><input id="npc-theater-glass" type="checkbox"> <span>玻璃拟态</span></label>
                 <label class="checkbox_label"><input id="npc-theater-animations" type="checkbox"> <span>界面动画</span></label>
                 <label class="checkbox_label"><input id="npc-theater-relations" type="checkbox"> <span>关系进度条</span></label>
-                <label class="checkbox_label"><input id="npc-theater-bottom-sheet" type="checkbox"> <span>移动端使用底部抽屉</span></label>
 
                 <h4>系统提示词</h4>
                 <textarea id="npc-theater-system-prompt" class="text_pole textarea_compact" rows="12"></textarea>
@@ -953,7 +936,6 @@ function createSettingsUi() {
     byId('npc-theater-glass').checked = settings.glassEffect;
     byId('npc-theater-animations').checked = settings.animations;
     byId('npc-theater-relations').checked = settings.showRelationships;
-    byId('npc-theater-bottom-sheet').checked = settings.mobileBottomSheet;
     byId('npc-theater-system-prompt').value = settings.systemPrompt;
 
     const bind = (id, key, read, eventName = 'change') => byId(id).addEventListener(eventName, event => {
@@ -974,7 +956,6 @@ function createSettingsUi() {
     bind('npc-theater-glass', 'glassEffect', input => input.checked);
     bind('npc-theater-animations', 'animations', input => input.checked);
     bind('npc-theater-relations', 'showRelationships', input => input.checked);
-    bind('npc-theater-bottom-sheet', 'mobileBottomSheet', input => input.checked);
     bind('npc-theater-system-prompt', 'systemPrompt', input => input.value, 'input');
 
     byId('npc-theater-api-key').addEventListener('input', event => {
