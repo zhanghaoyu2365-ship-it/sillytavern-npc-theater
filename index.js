@@ -220,7 +220,8 @@ function positionPanelWithToggle() {
     const gap = 10;
     const maxLeft = Math.max(8, window.innerWidth - width - 8);
     const maxTop = Math.max(8, window.innerHeight - height - 8);
-    const left = Math.max(8, Math.min(maxLeft, toggleRect.right - width));
+    const toggleCenter = toggleRect.left + toggleRect.width / 2;
+    const left = Math.max(8, Math.min(maxLeft, toggleCenter - width / 2));
     let top = toggleRect.top - height - gap;
     if (top < 8) top = toggleRect.bottom + gap;
     top = Math.max(8, Math.min(maxTop, top));
@@ -311,6 +312,9 @@ function makeToggleDraggable(toggle) {
         toggle.dataset.suppressClick = 'true';
         markDragGroup(drag.entries, true);
         moveDragGroup(drag.entries, deltaX, deltaY);
+        if (document.getElementById('npc-theater-panel')?.classList.contains('is-open')) {
+            positionPanelWithToggle();
+        }
     });
 
     const endDrag = event => {
@@ -322,7 +326,12 @@ function makeToggleDraggable(toggle) {
         markDragGroup(finishedDrag.entries, false);
         toggle.dataset.suppressClick = String(!cancelled);
         if (moved) {
-            saveDragGroup(finishedDrag.entries);
+            const panel = document.getElementById('npc-theater-panel');
+            if (panel?.classList.contains('is-open')) positionPanelWithToggle();
+            const entries = panel?.classList.contains('is-open')
+                ? [readFixedPosition(toggle), readFixedPosition(panel)]
+                : finishedDrag.entries;
+            saveDragGroup(entries);
             return;
         }
         if (!cancelled) activateToggle();
@@ -351,6 +360,7 @@ function readFixedPosition(element) {
 }
 
 function createLinkedDragGroup(primary) {
+    if (primary.id === 'npc-theater-toggle') return [readFixedPosition(primary)];
     const elements = new Set([primary]);
     const toggle = document.getElementById('npc-theater-toggle');
     const panel = document.getElementById('npc-theater-panel');
