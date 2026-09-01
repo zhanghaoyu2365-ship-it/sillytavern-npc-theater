@@ -15,6 +15,8 @@
 - 独立系统提示词、Temperature、Max Tokens、上下文条数和 JSON Schema 开关。
 - 自定义 OpenAI-Compatible API 会自动从 `/models` 拉取模型列表供下拉选择，并保留手动模型 ID 兜底。
 - 输出 JSON 结构会始终附在请求提示词中，因此未开启原生 JSON Schema 的 Gemini、Claude 等 Connection Profile 也能正常生成。
+- 请求中的身份固定标记为 `user` 与 `char`：始终排除 `user`，并强制生成当前 `char`。
+- 可选读取本轮正文实际触发的世界书内容；使用 SillyTavern 的只读世界书扫描并遵循原有激活规则与预算。
 
 ## 兼容性
 
@@ -47,6 +49,8 @@ https://github.com/zhanghaoyu2365-ship-it/sillytavern-npc-theater
 2. 在“扩展 → NPC 小剧场 → 独立 API”中选择 `SillyTavern Connection Profile`。
 3. 选择刚才建立的 Profile，设置 Temperature、Max Tokens 与上下文条数。
 4. 点击“测试 API”。测试成功后，可以开启自动生成。
+
+如需让小剧场理解世界观设定，可开启“读取本轮正文触发的世界书内容”。扩展只会附加当前剧情命中的条目，不会发送整本未触发世界书。
 
 这种模式不会切换主聊天当前连接，密钥继续由 SillyTavern 的 Secret / Connection Profile 系统管理。
 

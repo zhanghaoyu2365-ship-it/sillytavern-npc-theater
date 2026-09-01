@@ -117,7 +117,7 @@ export const THEATER_SCHEMA_VALUE = {
 
 export const SILLYTAVERN_THEATER_SCHEMA = {
     name: 'npc_theater_scene',
-    description: 'All NPCs physically present in the current roleplay scene, excluding the player.',
+    description: 'The current char and all other NPCs present in the roleplay scene, always excluding user.',
     strict: true,
     value: THEATER_SCHEMA_VALUE,
 };
@@ -131,4 +131,3 @@ export const OPENAI_THEATER_RESPONSE_FORMAT = {
         schema: THEATER_SCHEMA_VALUE,
     },
 };
-

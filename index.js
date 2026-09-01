@@ -34,8 +34,8 @@ const DIRECT_KEY_STORAGE = 'npc_theater_direct_api_key';
 const DEFAULT_SYSTEM_PROMPT = `你是角色扮演系统内部的“NPC 小剧场”分析器。你的任务是分析当前剧情，而不是续写剧情。
 
 必须遵守：
-1. 为当前场景中的每个非玩家角色生成一张小剧场卡。当前聊天的主角色、最近亲自说话或行动的非玩家角色都属于生成对象，不要把主角色误当成旁白而漏掉。
-2. PLAYER 是玩家本人。无论玩家拥有姓名、别名、身份或角色设定，都绝不能把 PLAYER 当作 NPC；禁止生成玩家的状态、心理或日记。
+1. 身份标记固定为 user 和 char：user 是玩家，必须排除；char 是当前聊天角色，必须作为小剧场生成对象。其他在场的非玩家角色也要一并生成。
+2. 无论 user 拥有姓名、别名、身份或角色设定，都绝不能把 user 当作 NPC；禁止生成 user 的状态、心理或日记。
 3. 只排除纯粹被回忆、转述、写在信件中或明确不在当前场景的角色。如果上下文表明非玩家角色正在说话、行动、观察玩家或与玩家互动，就必须生成，不能返回空数组。
 4. 一次返回全部在场 NPC；每个 NPC 都必须填写完整字段。不要续写剧情，不改变已发生的事件，也不要让角色获得其不可能知道的信息。
 5. 关系数值必须连续。若没有足以改变关系的重大事件，单项变化不应超过 8；只有确有重大事件时 relationship_event.major 才能为 true，并在 reason 中简述原因。
@@ -46,6 +46,7 @@ const DEFAULT_SYSTEM_PROMPT = `你是角色扮演系统内部的“NPC 小剧场
 10. 只返回符合给定结构的 JSON，不要 Markdown，不要解释。`;
 
 const INDEPENDENT_SCENE_RULE = '强制规则：本次生成是全新的独立小剧场。不得沿用、续写或复述此前生成过的心声与日记，只根据本次提供的最近剧情重新生成。';
+const ROLE_MARKER_RULE = '身份标记强制规则：[user] 永远表示玩家本人并且不得生成；[char] 表示当前聊天角色并且必须生成。不得交换、混淆或重新解释 user 与 char。';
 const OUTPUT_FORMAT_GUIDE = `无论当前连接是否支持 JSON Schema，都必须严格返回下面这种 JSON 对象，不得省略字段：
 {
   "scene": { "location": "地点", "time": "时间", "atmosphere": "氛围" },
@@ -76,6 +77,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     autoGenerate: true,
     generateOnSwipe: true,
     contextMessages: 20,
+    includeWorldInfo: false,
     apiMode: 'profile',
     profileId: '',
     directEndpoint: '',
@@ -704,6 +706,55 @@ function collectNpcCandidates(context) {
     return [...candidates.values()].slice(-20);
 }
 
+function addWorldInfoParts(target, value) {
+    if (typeof value === 'string') {
+        const text = value.trim();
+        if (text) target.push(text);
+        return;
+    }
+    if (Array.isArray(value)) {
+        value.forEach(item => addWorldInfoParts(target, item));
+    }
+}
+
+async function getActivatedWorldInfo(context) {
+    if (!settings.includeWorldInfo) return '';
+    if (typeof context.getWorldInfoPrompt !== 'function') {
+        console.warn('[NPC Theater] getWorldInfoPrompt is unavailable in this SillyTavern version.');
+        return '';
+    }
+
+    const scanChat = (context.chat ?? [])
+        .filter(message => !message?.is_system && message?.mes)
+        .map(message => {
+            const role = message.is_user ? 'user' : 'char';
+            const name = String(message.name || role).trim();
+            return `[${role}: ${name}]\n${String(message.mes)}`;
+        })
+        .reverse();
+    let result;
+    try {
+        result = await context.getWorldInfoPrompt(
+            scanChat,
+            Math.max(1024, Number(context.maxContext) || 8192),
+            true,
+        );
+    } catch (error) {
+        console.warn('[NPC Theater] failed to read activated World Info; generation will continue without it.', error);
+        return '';
+    }
+    const parts = [];
+    addWorldInfoParts(parts, result?.worldInfoBefore);
+    addWorldInfoParts(parts, result?.worldInfoAfter);
+    addWorldInfoParts(parts, result?.worldInfoExamples);
+    for (const entry of result?.worldInfoDepth ?? []) addWorldInfoParts(parts, entry?.entries ?? entry?.content);
+    addWorldInfoParts(parts, result?.anBefore);
+    addWorldInfoParts(parts, result?.anAfter);
+    for (const entries of Object.values(result?.outletEntries ?? {})) addWorldInfoParts(parts, entries);
+    if (!parts.length) addWorldInfoParts(parts, result?.worldInfoString);
+    return [...new Set(parts)].join('\n\n').slice(0, 40000);
+}
+
 function getRecentTranscript(context) {
     const limit = Math.max(4, Math.min(100, Number(settings.contextMessages) || 20));
     return (context.chat ?? [])
@@ -711,22 +762,23 @@ function getRecentTranscript(context) {
         .slice(-limit)
         .map(message => {
             const content = String(message.mes).slice(0, 12000);
-            if (message.is_user) return `[PLAYER]\n${content}`;
-            return `[CHARACTER / NPC: ${message.name || 'Unknown'}]\n${content}`;
+            if (message.is_user) return `[user: ${message.name || 'user'}]\n${content}`;
+            return `[char: ${message.name || 'char'}]\n${content}`;
         })
         .join('\n\n');
 }
 
-function buildMessages(context) {
+async function buildMessages(context) {
     const aliases = collectPlayerAliases(context);
     const npcCandidates = collectNpcCandidates(context);
     const continuity = summarizeContinuity(currentState);
+    const worldInfo = await getActivatedWorldInfo(context);
     const additionalPrompt = String(settings.systemPrompt || DEFAULT_SYSTEM_PROMPT).trim();
     return [
-        { role: 'system', content: `${additionalPrompt}\n\n${INDEPENDENT_SCENE_RULE}\n\n${OUTPUT_FORMAT_GUIDE}` },
+        { role: 'system', content: `${additionalPrompt}\n\n${ROLE_MARKER_RULE}\n\n${INDEPENDENT_SCENE_RULE}\n\n${OUTPUT_FORMAT_GUIDE}` },
         {
             role: 'user',
-            content: `玩家身份与别名（全部排除）：\n${aliases.join('、') || 'PLAYER'}\n\n近期出现的非玩家角色候选：\n${npcCandidates.join('、') || '请从剧情中识别'}\n\n上一轮只用于关系连续性的状态：\n${JSON.stringify(continuity)}\n\n最近剧情：\n${getRecentTranscript(context)}\n\n请立即生成当前在场的全部非玩家角色。近期亲自说话、行动或与玩家互动的候选角色必须生成；只返回 JSON。`,
+            content: `user 的身份与别名（全部排除）：\n${aliases.join('、') || 'user'}\n\nchar 与其他非玩家角色候选：\n${npcCandidates.join('、') || '请从剧情中识别 char'}\n\n上一轮只用于关系连续性的状态：\n${JSON.stringify(continuity)}${worldInfo ? `\n\n本轮正文触发的世界书内容（仅作为背景事实）：\n${worldInfo}` : ''}\n\n最近剧情：\n${getRecentTranscript(context)}\n\n请立即为 char 和当前在场的其他非玩家角色生成小剧场。绝不生成 user；只返回 JSON。`,
         },
     ];
 }
@@ -936,7 +988,8 @@ async function requestGeneration({ manual = false } = {}) {
 
     try {
         const configuredTemperature = Number(settings.temperature);
-        const raw = await withRetries(() => sendModelRequest(buildMessages(context), {
+        const messages = await buildMessages(context);
+        const raw = await withRetries(() => sendModelRequest(messages, {
             maxTokens: Math.max(256, Math.min(32000, Number(settings.maxTokens) || 6000)),
             temperature: Number.isFinite(configuredTemperature)
                 ? Math.max(0, Math.min(2, configuredTemperature))
@@ -993,6 +1046,7 @@ function createSettingsUi() {
                 <label class="checkbox_label"><input id="npc-theater-auto" type="checkbox"> <span>每次角色回复后自动生成</span></label>
                 <label class="checkbox_label"><input id="npc-theater-swipe" type="checkbox"> <span>切换 Swipe 后重新生成</span></label>
                 <label>读取上下文条数 <input id="npc-theater-context" class="text_pole" type="number" min="4" max="100" step="1"></label>
+                <label class="checkbox_label"><input id="npc-theater-world-info" type="checkbox"> <span>读取本轮正文触发的世界书内容</span></label>
 
                 <h4>独立 API</h4>
                 <label>API 模式
@@ -1044,6 +1098,7 @@ function createSettingsUi() {
     byId('npc-theater-auto').checked = settings.autoGenerate;
     byId('npc-theater-swipe').checked = settings.generateOnSwipe;
     byId('npc-theater-context').value = settings.contextMessages;
+    byId('npc-theater-world-info').checked = settings.includeWorldInfo;
     byId('npc-theater-api-mode').value = settings.apiMode;
     byId('npc-theater-endpoint').value = settings.directEndpoint;
     byId('npc-theater-api-key').value = sessionStorage.getItem(DIRECT_KEY_STORAGE) || '';
@@ -1064,6 +1119,7 @@ function createSettingsUi() {
     bind('npc-theater-auto', 'autoGenerate', input => input.checked);
     bind('npc-theater-swipe', 'generateOnSwipe', input => input.checked);
     bind('npc-theater-context', 'contextMessages', input => Number(input.value));
+    bind('npc-theater-world-info', 'includeWorldInfo', input => input.checked);
     bind('npc-theater-endpoint', 'directEndpoint', input => input.value.trim(), 'input');
     bind('npc-theater-temperature', 'temperature', input => Number(input.value));
     bind('npc-theater-max-tokens', 'maxTokens', input => Number(input.value));
