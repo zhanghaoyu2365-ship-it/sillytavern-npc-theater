@@ -14,6 +14,7 @@
 - 支持自动生成、Swipe 后更新、手动刷新、停止、失败重试和 API 测试。
 - 独立系统提示词、Temperature、Max Tokens、上下文条数和 JSON Schema 开关。
 - 自定义 OpenAI-Compatible API 会自动从 `/models` 拉取模型列表供下拉选择，并保留手动模型 ID 兜底。
+- 输出 JSON 结构会始终附在请求提示词中，因此未开启原生 JSON Schema 的 Gemini、Claude 等 Connection Profile 也能正常生成。
 
 ## 兼容性
 
@@ -89,7 +90,7 @@ npm run check
 
 ## 已知限制
 
-- “是否实际在场”由模型根据最近上下文判断，含糊场景可能需要提高上下文条数或调整系统提示词。
+- “是否实际在场”由模型根据最近上下文和非玩家发言者候选判断；最近亲自说话、行动或与玩家互动的主角色会被明确要求生成。
 - JSON Schema 能力取决于所选模型 / 提供商。扩展仍会在前端执行 JSON 解析、字段清理、玩家排除和关系限幅。
 - 自定义直连 API 可能被浏览器 CORS 策略拦截。
 

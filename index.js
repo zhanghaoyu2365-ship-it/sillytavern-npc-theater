@@ -34,10 +34,10 @@ const DIRECT_KEY_STORAGE = 'npc_theater_direct_api_key';
 const DEFAULT_SYSTEM_PROMPT = `你是角色扮演系统内部的“NPC 小剧场”分析器。你的任务是分析当前剧情，而不是续写剧情。
 
 必须遵守：
-1. 只输出此刻实际身处当前场景、正在参与实时事件的 NPC。仅被提及、回忆、转述、写在信件中或远程存在的角色不算在场。
+1. 为当前场景中的每个非玩家角色生成一张小剧场卡。当前聊天的主角色、最近亲自说话或行动的非玩家角色都属于生成对象，不要把主角色误当成旁白而漏掉。
 2. PLAYER 是玩家本人。无论玩家拥有姓名、别名、身份或角色设定，都绝不能把 PLAYER 当作 NPC；禁止生成玩家的状态、心理或日记。
-3. 不添加原文没有依据的在场角色，不改变已发生的事件，不让 NPC 获得其不可能知道的信息。
-4. 一次返回全部在场 NPC。每个 NPC 都必须填写完整字段。
+3. 只排除纯粹被回忆、转述、写在信件中或明确不在当前场景的角色。如果上下文表明非玩家角色正在说话、行动、观察玩家或与玩家互动，就必须生成，不能返回空数组。
+4. 一次返回全部在场 NPC；每个 NPC 都必须填写完整字段。不要续写剧情，不改变已发生的事件，也不要让角色获得其不可能知道的信息。
 5. 关系数值必须连续。若没有足以改变关系的重大事件，单项变化不应超过 8；只有确有重大事件时 relationship_event.major 才能为 true，并在 reason 中简述原因。
 6. mind.surface 是此刻表层意识；mind.deep 是更深层、可能未自觉的动机；mind.unspoken 是最想说却没说出口的话。
 7. diary 使用 NPC 第一人称，记录“如果之后有机会写下刚才发生的事，会如何记录”。
@@ -46,6 +46,31 @@ const DEFAULT_SYSTEM_PROMPT = `你是角色扮演系统内部的“NPC 小剧场
 10. 只返回符合给定结构的 JSON，不要 Markdown，不要解释。`;
 
 const INDEPENDENT_SCENE_RULE = '强制规则：本次生成是全新的独立小剧场。不得沿用、续写或复述此前生成过的心声与日记，只根据本次提供的最近剧情重新生成。';
+const OUTPUT_FORMAT_GUIDE = `无论当前连接是否支持 JSON Schema，都必须严格返回下面这种 JSON 对象，不得省略字段：
+{
+  "scene": { "location": "地点", "time": "时间", "atmosphere": "氛围" },
+  "characters": [
+    {
+      "name": "NPC 姓名",
+      "emotion": { "label": "主要情绪", "intensity": 50 },
+      "tags": ["标签一", "标签二"],
+      "status": {
+        "location": "当前位置",
+        "posture": "姿态",
+        "action": "当前动作",
+        "appearance": "外观",
+        "physical": "身体状态",
+        "current_goal": "当前目标",
+        "attitude_to_player": "对玩家态度"
+      },
+      "relationship": { "favor": 50, "trust": 50, "guard": 50, "interest": 50, "stress": 50 },
+      "relationship_event": { "major": false, "reason": "" },
+      "mind": { "surface": "表层意识", "deep": "深层心理", "unspoken": "未出口的话" },
+      "diary": { "title": "本轮日记标题", "content": "本轮第一人称日记" }
+    }
+  ]
+}
+所有关系值和情绪强度必须是 0 到 100 的整数。只在确实没有任何非玩家角色在场时才允许 characters 为空。`;
 
 const DEFAULT_SETTINGS = Object.freeze({
     autoGenerate: true,
@@ -663,6 +688,22 @@ function collectPlayerAliases(context) {
     return [...aliases].filter(Boolean);
 }
 
+function collectNpcCandidates(context) {
+    const excluded = new Set(collectPlayerAliases(context).map(normalizeName));
+    const candidates = new Map();
+    const limit = Math.max(4, Math.min(100, Number(settings.contextMessages) || 20));
+    for (const message of (context.chat ?? []).slice(-limit)) {
+        if (!message || message.is_user || message.is_system || !message.name) continue;
+        const name = String(message.name).trim();
+        const key = normalizeName(name);
+        if (key && !excluded.has(key)) {
+            candidates.delete(key);
+            candidates.set(key, name);
+        }
+    }
+    return [...candidates.values()].slice(-20);
+}
+
 function getRecentTranscript(context) {
     const limit = Math.max(4, Math.min(100, Number(settings.contextMessages) || 20));
     return (context.chat ?? [])
@@ -671,20 +712,21 @@ function getRecentTranscript(context) {
         .map(message => {
             const content = String(message.mes).slice(0, 12000);
             if (message.is_user) return `[PLAYER]\n${content}`;
-            return `[NPC / NARRATOR: ${message.name || 'Unknown'}]\n${content}`;
+            return `[CHARACTER / NPC: ${message.name || 'Unknown'}]\n${content}`;
         })
         .join('\n\n');
 }
 
 function buildMessages(context) {
     const aliases = collectPlayerAliases(context);
+    const npcCandidates = collectNpcCandidates(context);
     const continuity = summarizeContinuity(currentState);
     const additionalPrompt = String(settings.systemPrompt || DEFAULT_SYSTEM_PROMPT).trim();
     return [
-        { role: 'system', content: `${additionalPrompt}\n\n${INDEPENDENT_SCENE_RULE}` },
+        { role: 'system', content: `${additionalPrompt}\n\n${INDEPENDENT_SCENE_RULE}\n\n${OUTPUT_FORMAT_GUIDE}` },
         {
             role: 'user',
-            content: `玩家身份与别名（全部排除）：\n${aliases.join('、')}\n\n上一轮连续状态：\n${JSON.stringify(continuity)}\n\n最近剧情：\n${getRecentTranscript(context)}\n\n请分析当前实际在场的全部 NPC。`,
+            content: `玩家身份与别名（全部排除）：\n${aliases.join('、') || 'PLAYER'}\n\n近期出现的非玩家角色候选：\n${npcCandidates.join('、') || '请从剧情中识别'}\n\n上一轮只用于关系连续性的状态：\n${JSON.stringify(continuity)}\n\n最近剧情：\n${getRecentTranscript(context)}\n\n请立即生成当前在场的全部非玩家角色。近期亲自说话、行动或与玩家互动的候选角色必须生成；只返回 JSON。`,
         },
     ];
 }
@@ -709,7 +751,7 @@ async function sendViaProfile(messages, options) {
             signal: options.signal,
             extractData: true,
             includePreset: false,
-            includeInstruct: true,
+            includeInstruct: false,
         },
         overridePayload,
     );
