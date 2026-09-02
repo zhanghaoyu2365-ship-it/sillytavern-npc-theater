@@ -196,7 +196,6 @@ function createTheaterUi() {
             <div class="npc-theater-header-actions">
                 <button type="button" id="npc-theater-refresh" title="重新生成" aria-label="重新生成">↻</button>
                 <button type="button" id="npc-theater-open-settings" title="设置" aria-label="设置">⚙</button>
-                <button type="button" id="npc-theater-minimize" title="收起内容" aria-label="收起内容">—</button>
                 <button type="button" id="npc-theater-close" title="关闭" aria-label="关闭">×</button>
             </div>
         </header>
@@ -228,9 +227,6 @@ function createTheaterUi() {
         else requestGeneration({ manual: true });
     });
     panel.querySelector('#npc-theater-open-settings').addEventListener('click', openSettings);
-    panel.querySelector('#npc-theater-minimize').addEventListener('click', () => {
-        panel.classList.toggle('is-minimized');
-    });
 
     makePanelDraggable(panel, panel.querySelector('#npc-theater-drag-handle'));
     window.addEventListener('resize', () => {
@@ -285,6 +281,7 @@ function openPanel() {
     const panel = document.getElementById('npc-theater-panel');
     if (!panel) return;
     applyAppearanceSettings();
+    panel.classList.remove('is-minimized');
     positionPanelWithToggle();
     panel.classList.add('is-open');
     panel.setAttribute('aria-hidden', 'false');
@@ -514,10 +511,12 @@ function setLoading(value, statusText = '') {
 }
 
 function renderPanel() {
+    const panel = document.getElementById('npc-theater-panel');
     const sceneRoot = document.getElementById('npc-theater-scene');
     const listRoot = document.getElementById('npc-theater-list');
     if (!sceneRoot || !listRoot) return;
-    if (document.getElementById('npc-theater-panel')?.classList.contains('is-open')) {
+    panel?.classList.remove('is-minimized');
+    if (panel?.classList.contains('is-open')) {
         requestAnimationFrame(positionPanelWithToggle);
     }
 

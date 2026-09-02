@@ -480,10 +480,6 @@
 .npc-theater-empty p { margin: 7px 0 14px; color: var(--npc-theater-muted); font-size: 11px; }
 .npc-theater-error { max-width: 100%; margin-top: 12px; color: #e88f8f; overflow-wrap: anywhere; }
 
-.npc-theater-panel.is-minimized .npc-theater-scene,
-.npc-theater-panel.is-minimized .npc-theater-progress,
-.npc-theater-panel.is-minimized .npc-theater-list { display: none; }
-
 .npc-theater-settings .inline-drawer-content {
     display: flex;
     flex-direction: column;
