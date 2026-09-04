@@ -62,7 +62,9 @@ https://github.com/zhanghaoyu2365-ship-it/sillytavern-npc-theater
 注意：
 
 - 请求由浏览器直接发出，服务端必须允许当前 SillyTavern 页面发起 CORS 请求。
-- API Key 只保存在当前标签页的 `sessionStorage`，不会写入扩展设置；关闭标签页后需要重新输入。
+- 默认情况下，API Key 只保存在当前标签页的 `sessionStorage`，关闭标签页后需要重新输入。
+- 开启“在此浏览器保存 API Key”后，Key 会持久写入该浏览器的 `localStorage`；关闭开关会立即删除持久副本并改回会话保存。
+- `localStorage` 中的 Key 是明文数据，同一酒馆站点下运行的脚本可能访问它，共用设备请勿开启；安全性要求较高时请使用 Connection Profile。
 - 如果服务不支持 `response_format: json_schema`，请关闭“JSON Schema 结构化输出”。
 - 对于常用远端服务，优先创建 SillyTavern Connection Profile。
 
@@ -71,7 +73,7 @@ https://github.com/zhanghaoyu2365-ship-it/sillytavern-npc-theater
 - 扩展仅读取设置中指定数量的最近聊天消息，并将它们发送给所选的小剧场 API。
 - 当前一轮小剧场状态与关系连续性数据存放在当前聊天的元数据键 `npc_theater_v1`；旧心声与旧日记不会累计保存。
 - 扩展不会读取 SillyTavern 密钥，也不会把小剧场内容插入主聊天上下文。
-- 自定义直连模式的 Key 仅保存在 `sessionStorage`。
+- 自定义直连模式的 Key 默认使用 `sessionStorage`；用户主动开启保存时才使用 `localStorage`，并且不会写入聊天数据或导出的扩展配置。
 
 ## 使用
 

@@ -82,6 +82,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     profileId: '',
     directEndpoint: '',
     directModel: '',
+    rememberDirectApiKey: false,
     temperature: 0.8,
     maxTokens: 6000,
     retries: 2,
@@ -127,6 +128,33 @@ function loadSettings() {
 function persistSettings() {
     saveSettingsDebounced();
     applyAppearanceSettings();
+}
+
+function readDirectApiKey() {
+    try {
+        const primary = settings?.rememberDirectApiKey ? localStorage : sessionStorage;
+        return primary.getItem(DIRECT_KEY_STORAGE)
+            || (settings?.rememberDirectApiKey ? sessionStorage.getItem(DIRECT_KEY_STORAGE) : '')
+            || '';
+    } catch (error) {
+        console.warn('[NPC Theater] failed to read the stored direct API key.', error);
+        return '';
+    }
+}
+
+function writeDirectApiKey(value, persistent = Boolean(settings?.rememberDirectApiKey)) {
+    const key = String(value ?? '');
+    try {
+        const primary = persistent ? localStorage : sessionStorage;
+        const secondary = persistent ? sessionStorage : localStorage;
+        if (key) primary.setItem(DIRECT_KEY_STORAGE, key);
+        else primary.removeItem(DIRECT_KEY_STORAGE);
+        secondary.removeItem(DIRECT_KEY_STORAGE);
+        return true;
+    } catch (error) {
+        console.warn('[NPC Theater] failed to store the direct API key.', error);
+        return false;
+    }
 }
 
 function loadChatState() {
@@ -855,7 +883,7 @@ async function fetchDirectModels({ manual = false } = {}) {
     if (status) status.textContent = '正在读取模型列表…';
 
     try {
-        const apiKey = sessionStorage.getItem(DIRECT_KEY_STORAGE) || '';
+        const apiKey = readDirectApiKey();
         const headers = { Accept: 'application/json' };
         if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
         const response = await fetch(resolveModelsEndpoint(endpoint), {
@@ -905,7 +933,7 @@ function extractDirectContent(data) {
 async function sendViaDirectApi(messages, options) {
     if (!settings.directEndpoint) throw new Error('请填写 OpenAI-Compatible API Endpoint。');
     if (!settings.directModel) throw new Error('请填写模型 ID。');
-    const apiKey = sessionStorage.getItem(DIRECT_KEY_STORAGE) || '';
+    const apiKey = readDirectApiKey();
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
     const body = {
@@ -1060,14 +1088,15 @@ function createSettingsUi() {
                 </div>
                 <div id="npc-theater-direct-fields">
                     <label>API Endpoint <input id="npc-theater-endpoint" class="text_pole" type="url" placeholder="https://example.com/v1/chat/completions"></label>
-                    <label>API Key <input id="npc-theater-api-key" class="text_pole" type="password" autocomplete="off" placeholder="仅保存在当前浏览器会话"></label>
+                    <label>API Key <input id="npc-theater-api-key" class="text_pole" type="password" autocomplete="off" placeholder="输入 API Key"></label>
+                    <label class="checkbox_label"><input id="npc-theater-remember-api-key" type="checkbox"> <span>在此浏览器保存 API Key</span></label>
                     <label>模型列表 <select id="npc-theater-model" class="text_pole"><option value="">请先填写 API 地址</option></select></label>
                     <div class="npc-theater-model-actions">
                         <button type="button" id="npc-theater-fetch-models" class="menu_button">↻ 拉取模型列表</button>
                         <small id="npc-theater-model-status">填写 API 地址和 Key 后将自动拉取。</small>
                     </div>
                     <label>手动模型 ID <input id="npc-theater-model-manual" class="text_pole" type="text" placeholder="列表不可用时可手动填写"></label>
-                    <small class="npc-theater-warning">直连模式受浏览器 CORS 限制；API Key 只写入 sessionStorage，关闭标签页后清除。优先使用 Connection Profile。</small>
+                    <small class="npc-theater-warning">未开启保存时，Key 仅保留到当前标签页关闭；开启后会明文保存在此浏览器的 localStorage。共用设备请勿开启。优先使用 Connection Profile 管理密钥。</small>
                 </div>
                 <div class="npc-theater-setting-grid">
                     <label>Temperature <input id="npc-theater-temperature" class="text_pole" type="number" min="0" max="2" step="0.1"></label>
@@ -1100,7 +1129,8 @@ function createSettingsUi() {
     byId('npc-theater-world-info').checked = settings.includeWorldInfo;
     byId('npc-theater-api-mode').value = settings.apiMode;
     byId('npc-theater-endpoint').value = settings.directEndpoint;
-    byId('npc-theater-api-key').value = sessionStorage.getItem(DIRECT_KEY_STORAGE) || '';
+    byId('npc-theater-remember-api-key').checked = settings.rememberDirectApiKey;
+    byId('npc-theater-api-key').value = readDirectApiKey();
     populateDirectModelOptions([]);
     byId('npc-theater-temperature').value = settings.temperature;
     byId('npc-theater-max-tokens').value = settings.maxTokens;
@@ -1131,9 +1161,22 @@ function createSettingsUi() {
 
     byId('npc-theater-api-key').addEventListener('input', event => {
         const value = event.target.value;
-        if (value) sessionStorage.setItem(DIRECT_KEY_STORAGE, value);
-        else sessionStorage.removeItem(DIRECT_KEY_STORAGE);
+        writeDirectApiKey(value);
         scheduleDirectModelFetch();
+    });
+    byId('npc-theater-remember-api-key').addEventListener('change', event => {
+        const remember = event.target.checked;
+        const value = byId('npc-theater-api-key').value;
+        if (!writeDirectApiKey(value, remember)) {
+            event.target.checked = false;
+            settings.rememberDirectApiKey = false;
+            writeDirectApiKey(value, false);
+            toast('warning', '当前浏览器不允许持久保存，API Key 将只保留在本标签页。');
+        } else {
+            settings.rememberDirectApiKey = remember;
+            toast('success', remember ? 'API Key 已保存在此浏览器。' : '已删除持久保存的 API Key。');
+        }
+        persistSettings();
     });
     byId('npc-theater-endpoint').addEventListener('input', () => scheduleDirectModelFetch());
     byId('npc-theater-model').addEventListener('change', event => {
